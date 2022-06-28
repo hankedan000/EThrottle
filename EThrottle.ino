@@ -49,6 +49,9 @@ size_t serBuffIdx = 0;
 char serBuff[20] = "400";
 char serCmd = '\0';
 bool logPID_In = false;
+bool autoSetpoint = false;
+uint16_t prevAutoSetpoint_ms = 0;
+double prevSetpoint = 0.0;
 
 void logPID_Params() {
   Serial.print("Kp = " );
@@ -59,6 +62,7 @@ void logPID_Params() {
   Serial.println(pid.GetKd());
 }
 
+// a    -> toggle auto setpoint (setpoint with flip from 0 to setpoint every 2s)
 // s### -> set 'pidSetpoint' to ###
 // p### -> set 'Kp' to ###
 // i### -> set 'Ki' to ###
@@ -80,6 +84,10 @@ void doSerial() {
           val = atof(serBuff);
         }
         switch (serCmd) {
+          case 'a':
+            prevSetpoint = pidSetpoint;
+            autoSetpoint = ! autoSetpoint;
+            break;
           case 's':
             pidSetpoint = val;
             Serial.print("pidSetpoint = ");
@@ -118,6 +126,19 @@ void loop() {
   doSerial();
 //  tpsN = analogRead(TPS_N_PIN);
   tpsI = analogRead(TPS_I_PIN);
+
+  if (autoSetpoint) {
+    uint16_t currMillis = millis();
+    if ((currMillis - prevAutoSetpoint_ms) > 2000) {
+      if (pidSetpoint > 0) {
+        pidSetpoint = 0;
+      } else {
+        pidSetpoint = prevSetpoint;
+      }
+      
+      prevAutoSetpoint_ms = currMillis;
+    }
+  }
 
   // sanitize PID inputs
   if (pidSetpoint > MAX_SETPOINT) {
