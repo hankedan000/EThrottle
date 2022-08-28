@@ -24,12 +24,17 @@
 #define PPSA_100_ADC 1023// PPSA ADC reading at 100% pedal
 #define PPSB_100_ADC 875 // PPSB ADC reading at 100% pedal
 
+// raw ADC values for throttle position sensors
 uint16_t tpsN = 0;
 uint16_t tpsI = 0;
 
 double pidSetpoint = 0;
 double pidIn = 0;
 double pidOut = 0;
+
+// raw ADC values for pedal position sensors
+uint16_t ppsa = 0;
+uint16_t ppsb = 0;
 
 /**
  * pedal position sensor percentage.
@@ -134,6 +139,12 @@ void doSerial() {
             break;
           case 'm':
             setpointFromPPS = ! setpointFromPPS;
+            if (setpointFromPPS) {
+              Serial.println("setpoint from PPS");
+            } else {
+              Serial.println("setpoint from overrides");
+              Serial.println("use 's' command or 'a' to override");
+            }
             break;
         }
 
@@ -150,8 +161,8 @@ void doSerial() {
 }
 
 void doPedal() {
-  uint16_t ppsa = analogRead(PPS_A_PIN);
-  uint16_t ppsb = analogRead(PPS_B_PIN);
+  ppsa = analogRead(PPS_A_PIN);
+  ppsb = analogRead(PPS_B_PIN);
 
   // TODO add logic to safety check the raw ADC values
 
@@ -185,9 +196,7 @@ void doPedal() {
 //  Serial.println(pps_f);
 }
 
-void loop() {
-  doSerial();
-  doPedal();
+void doThrottle() {
 //  tpsN = analogRead(TPS_N_PIN);
   tpsI = analogRead(TPS_I_PIN);
 
@@ -222,4 +231,10 @@ void loop() {
   }
 
   analogWrite(MOTOR_P, pidOut);
+}
+
+void loop() {
+  doSerial();
+  doPedal();
+  doThrottle();
 }
