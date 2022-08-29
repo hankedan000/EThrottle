@@ -40,9 +40,9 @@ uint16_t ppsb = 0;
  * pedal position sensor percentage.
  *  * computed in doPedal()
  *  * saturated to fit within valid range
- *  * range: 0.0 to 100.0
+ *  * range: 0-10000 (0-100%)
  */
-float pps_f = 0.0;
+int16_t pps = 0;
 
 //Specify the links and initial tuning parameters
 double Kp=6.0, Ki=20.0, Kd=0.0;
@@ -185,15 +185,15 @@ void doPedal() {
   // it does a better job at covering the full range of motion. ppsa
   // saturates right before 100% throttle.
   // TODO: add configurable 'favored pps' option
-  pps_f = map(ppsb_norm, 0, 1024, 0.0, 100.0);
-  if (pps_f < 0.0) {
-    pps_f = 0.0;
-  } else if (pps_f > 100.0) {
-    pps_f = 100.0;
+  pps = map(ppsb_norm, 0, 1024, 0, 10000);
+  if (pps < 0) {
+    pps = 0;
+  } else if (pps > 10000) {
+    pps = 10000;
   }
 
-//  Serial.print("pps_f: ");
-//  Serial.println(pps_f);
+//  Serial.print("pps: ");
+//  Serial.println(pps);
 }
 
 void doThrottle() {
@@ -201,7 +201,7 @@ void doThrottle() {
   tpsI = analogRead(TPS_I_PIN);
 
   if (setpointFromPPS) {
-    pidSetpoint = map(pps_f,0.0,100.0,MIN_SETPOINT,MAX_SETPOINT);
+    pidSetpoint = map(pps,0,10000,MIN_SETPOINT,MAX_SETPOINT);
   } else if (autoSetpoint) {
     uint16_t currMillis = millis();
     if ((currMillis - prevAutoSetpoint_ms) > 2000) {
