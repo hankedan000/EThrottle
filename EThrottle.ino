@@ -9,8 +9,15 @@
 #define PPS_B_PIN A1
 
 // digital outputs
-#define MOTOR_P 3
-#define MOTOR_N 4
+#define MOTOR_P 3// pin needs PWM support
+#define MOTOR_N 5// pin needs PWM support
+
+// define this if the motor driver is an h-bridge variant. this
+// enables us to reverse the throttle motor polarity to close
+// the blade faster than the return spring would allow.
+// if unset, then the code will rely on the return spring to
+// bring the throttle blade closed (slow but still functional)
+#define SUPPORT_H_BRIDGE
 
 // the highest setpoint the throttle PID controller can target
 // this is the highest TPS sensor reading we get if you manually
@@ -60,11 +67,16 @@ void setup() {
   pinMode(MOTOR_P, OUTPUT);
   pinMode(MOTOR_N, OUTPUT);
 
-  digitalWrite(MOTOR_P, LOW);
-  digitalWrite(MOTOR_N, LOW);
+  analogWrite(MOTOR_P, 0);
+  analogWrite(MOTOR_N, 0);
 
   pid.SetMode(AUTOMATIC);
+#ifdef SUPPORT_H_BRIDGE
+  // negative range is used to reverse motor to close throttle
+  pid.SetOutputLimits(-255, 255);
+#else
   pid.SetOutputLimits(0, 255);
+#endif
   pid.SetSampleTime(10);
   pidSetpoint = 400;
   
@@ -230,7 +242,28 @@ void doThrottle() {
     Serial.println(pidIn);
   }
 
-  analogWrite(MOTOR_P, pidOut);
+  // negative PWM means we need to close throttle; results in inverse
+  // motor polarity in H-Bridge driver use cases, or just undriven
+  // motor otherwise (relies on throttle body return spring to close)
+  int16_t pwmOut = pidOut;
+
+#ifdef SUPPORT_H_BRIDGE
+  // handle h-bridge polarity inversion logic
+  if (pwmOut > 0) {
+    analogWrite(MOTOR_P, pwmOut);
+    analogWrite(MOTOR_N, 0);
+  } else if (pwmOut < 0) {
+    analogWrite(MOTOR_P, 0);
+    analogWrite(MOTOR_N, pwmOut * -1);// * -1 to write PWM magnitude only
+  } else {
+    analogWrite(MOTOR_P, 0);
+    analogWrite(MOTOR_N, 0);
+  }
+#else
+  // no h-bridge means we can only drive the motor 1 way
+  analogWrite(MOTOR_P, pwmOut);
+  analogWrite(MOTOR_N, 0);
+#endif
 }
 
 void loop() {
