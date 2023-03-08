@@ -28,17 +28,21 @@ public:
    */
   struct RAM_Vars
   {
+    // ADC readings from throttle position sensors A & B
+    // range: [0 to 1023]
     uint16_t tpsA;
     uint16_t tpsB;
     // finalized throttle position based on both A & B sensor readings
-    // range: [0 to 10000] (ie. 0 to 100%)
-    uint16_t tps;
+    // range: [-10000 to 10000] (ie. -100 to 100%)
+    int16_t tps;
 
+    // ADC readings from pedal position sensors A & B
+    // range: [0 to 1023]
     uint16_t ppsA;
     uint16_t ppsB;
     // finalized pedal position based on both A & B sensor readings
-    // range: [0 to 10000] (ie. 0 to 100%)
-    uint16_t pps;
+    // range: [-10000 to 10000] (ie. -100 to 100%)
+    int16_t pps;
 
     // P,I, and D coefficient fed into the PID controller
     // to update this settings, call updatePID_Coeffs()

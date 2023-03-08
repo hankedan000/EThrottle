@@ -93,8 +93,8 @@ Throttle::doPedal()
   // Serial.println(vars_->ppsB);
 
   // normalize PPS readings based on calibrated min/max values
-  int16_t ppsA_Norm = map(vars_->ppsA, ppsCalA_.min, ppsCalA_.max, 0, 1024);
-  int16_t ppsB_Norm = map(vars_->ppsB, ppsCalB_.min, ppsCalB_.max, 0, 1024);
+  int16_t ppsA_Norm = map(vars_->ppsA, ppsCalA_.min, ppsCalA_.max, 0, 10000);
+  int16_t ppsB_Norm = map(vars_->ppsB, ppsCalB_.min, ppsCalB_.max, 0, 10000);
 
   // Serial.print("ppsA_Norm: ");
   // Serial.print(ppsA_Norm);
@@ -106,14 +106,14 @@ Throttle::doPedal()
   // it does a better job at covering the full range of motion. ppsa
   // saturates right before 100% throttle.
   // TODO: add configurable 'favored pps' option
-  vars_->pps = map(ppsA_Norm, 0, 1024, 0, 10000);
+  vars_->pps = ppsA_Norm;
   if (vars_->pps < 0) {
     vars_->pps = 0;
   } else if (vars_->pps > 10000) {
     vars_->pps = 10000;
   }
 
-  // Serial.print("pps: ");
+  // Serial.print("pps:");
   // Serial.println(vars_->pps);
 }
 
@@ -127,16 +127,11 @@ Throttle::doThrottle()
   int16_t tpsA_Norm = map(vars_->tpsA, tpsCalA_.min, tpsCalA_.max, 0, 10000);
   int16_t tpsB_Norm = map(vars_->tpsB, tpsCalB_.min, tpsCalB_.max, 0, 10000);
 
-  uint16_t setpoint = 0;
+  int16_t setpoint = 0;
   if (vars_->ctrl0.setpointOverride.enabled) {
     setpoint = vars_->ctrl0.setpointOverride.value;
   } else {
     setpoint = vars_->pps;
-  }
-
-  // sanitize PID inputs
-  if (setpoint > 10000) {
-    setpoint = 10000;
   }
 
   // update PID control variables
@@ -144,8 +139,8 @@ Throttle::doThrottle()
   pidIn_ = tpsB_Norm;
   pid_.Compute();
 
-  // Serial.print("pidIn:");
-  // Serial.println(pidIn);
+  // Serial.print("pidIn_: ");
+  // Serial.println(pidIn_);
 
   // negative PWM means we need to close throttle; results in inverse
   // motor polarity in H-Bridge driver use cases, or just undriven
