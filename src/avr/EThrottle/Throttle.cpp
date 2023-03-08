@@ -31,8 +31,8 @@ Throttle::Throttle(
   tpsCalB_.max = 856;
 
   // FIXME restore coefficients from EEPROM
-  vars_->Kp = 6.0;
-  vars_->Ki = 20.0;
+  vars_->Kp = 0.4;
+  vars_->Ki = 0.0;
   vars_->Kd = 0.0;
   updatePID_Coeffs();
 }
