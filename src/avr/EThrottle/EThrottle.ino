@@ -45,6 +45,7 @@ void logPID_Params() {
   Serial.println(throttleVars.Kd);
 }
 
+// a    -> auto tune PID controller
 // s### -> set 'pidSetpoint' to ###
 // p### -> set 'Kp' to ###
 // i### -> set 'Ki' to ###
@@ -65,9 +66,18 @@ void doSerial() {
           val = atof(serBuff);
         }
         switch (serCmd) {
+          case 'a':
+            if (throttleVars.status.pidAutoTuneBusy) {
+              throttle.stopPID_AutoTune();
+              Serial.println("stopped PID auto-tune");
+            } else {
+              throttle.startPID_AutoTune();
+              Serial.println("started PID auto-tune");
+            }
+            break;
           case 's':
-            if (throttleVars.ctrl0.setpointOverride.enabled) {
-              throttleVars.ctrl0.setpointOverride.value = val;
+            if (throttleVars.ctrl.setpointOverride.enabled) {
+              throttleVars.ctrl.setpointOverride.value = val;
               Serial.print("setpointOverride = ");
               Serial.println(val);
             }
@@ -85,12 +95,13 @@ void doSerial() {
             logPID_Params();
             break;
           case 'm':
-            throttleVars.ctrl0.setpointOverride.enabled ^= 1;
-            if (throttleVars.ctrl0.setpointOverride.enabled) {
-              Serial.println("setpoint from overrides");
-              Serial.println("use 's' command or 'a' to override");
+            throttleVars.ctrl.setpointOverride.enabled ^= 1;
+            Serial.print("setpoint override: ");
+            if (throttleVars.ctrl.setpointOverride.enabled) {
+              Serial.println("ON");
+              Serial.println("use 's' command to set the override");
             } else {
-              Serial.println("setpoint from PPS");
+              Serial.println("OFF");
             }
             break;
         }

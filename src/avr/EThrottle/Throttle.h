@@ -3,6 +3,7 @@
 
 #include <PID_v1.h>
 #include <stdint.h>
+#include "pidautotuner.h"
 
 // define this if the motor driver is an h-bridge variant. this
 // enables us to reverse the throttle motor polarity to close
@@ -66,7 +67,13 @@ public:
         // set to 1 to enable override
         uint16_t enabled  : 1;
       } setpointOverride;
-    } ctrl0;
+    } ctrl;
+
+    struct Status
+    {
+      uint8_t pidAutoTuneBusy : 1;
+      uint8_t reserved        : 7;
+    } status;
   };
 
 public:
@@ -98,6 +105,12 @@ public:
   // pushes the PID coefficients into the controller
   void
   updatePID_Coeffs();
+
+  void
+  startPID_AutoTune();
+
+  void
+  stopPID_AutoTune();
 
 private:
   void
@@ -148,6 +161,8 @@ private:
     double pidSetpoint_;
     // the PID controller itself
     PID pid_;
+
+    PIDAutotuner tuner_;
 
 };
 

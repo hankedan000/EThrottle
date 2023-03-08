@@ -31,8 +31,8 @@ Throttle::Throttle(
   tpsCalB_.max = 856;
 
   // FIXME restore coefficients from EEPROM
-  vars_->Kp = 0.4;
-  vars_->Ki = 0.0;
+  vars_->Kp = 0.33;
+  vars_->Ki = 0.17;
   vars_->Kd = 0.0;
   updatePID_Coeffs();
 }
@@ -60,10 +60,15 @@ Throttle::init(
 #ifdef SUPPORT_H_BRIDGE
   // negative range is used to reverse motor to close throttle
   pid_.SetOutputLimits(-255, 255);
+  tuner_.setOutputRange(-255, 255);
 #else
   pid_.SetOutputLimits(0, 255);
+  tuner_.setOutputRange(0, 255);
 #endif
+
   pid_.SetSampleTime(pidSampleRate_ms_);
+  tuner_.setZNMode(PIDAutotuner::ZNModeNoOvershoot);
+  tuner_.setLoopInterval(pidSampleRate_ms_ * 1000);
 }
 
 void
@@ -77,6 +82,30 @@ void
 Throttle::updatePID_Coeffs()
 {
   pid_.SetTunings(vars_->Kp,vars_->Ki,vars_->Kd);
+}
+
+void
+Throttle::startPID_AutoTune()
+{
+  if (vars_->status.pidAutoTuneBusy) {
+    return;
+  }
+
+  const uint16_t AUTOTUNE_TARGET = 5000;// 50%
+
+  vars_->status.pidAutoTuneBusy = 1;
+  vars_->ctrl.setpointOverride.enabled = 1;
+  vars_->ctrl.setpointOverride.value = AUTOTUNE_TARGET;// 50%
+  tuner_.setTargetInputValue(AUTOTUNE_TARGET);
+  tuner_.startTuningLoop(micros());
+}
+
+void
+Throttle::stopPID_AutoTune()
+{
+  vars_->status.pidAutoTuneBusy = 0;
+  vars_->ctrl.setpointOverride.enabled = 0;
+  vars_->ctrl.setpointOverride.value = 0;
 }
 
 void
@@ -128,8 +157,8 @@ Throttle::doThrottle()
   int16_t tpsB_Norm = map(vars_->tpsB, tpsCalB_.min, tpsCalB_.max, 0, 10000);
 
   int16_t setpoint = 0;
-  if (vars_->ctrl0.setpointOverride.enabled) {
-    setpoint = vars_->ctrl0.setpointOverride.value;
+  if (vars_->ctrl.setpointOverride.enabled) {
+    setpoint = vars_->ctrl.setpointOverride.value;
   } else {
     setpoint = vars_->pps;
   }
@@ -141,6 +170,23 @@ Throttle::doThrottle()
 
   // Serial.print("pidIn_: ");
   // Serial.println(pidIn_);
+
+  // handle PID auto-tune logic
+  if (vars_->status.pidAutoTuneBusy) {
+    pidOut_ = tuner_.tunePID(pidIn_, micros());
+
+    if (tuner_.isFinished()) {
+      stopPID_AutoTune();
+
+      Serial.println("auto tune done!");
+      Serial.print("Kp = ");
+      Serial.println(tuner_.getKp());
+      Serial.print("Ki = ");
+      Serial.println(tuner_.getKi());
+      Serial.print("Kd = ");
+      Serial.println(tuner_.getKd());
+    }
+  }
 
   // negative PWM means we need to close throttle; results in inverse
   // motor polarity in H-Bridge driver use cases, or just undriven
