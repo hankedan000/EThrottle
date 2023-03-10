@@ -1,0 +1,3 @@
+[submodule "src/avr/EThrottle/pid_autotuner"]
+	path = src/avr/EThrottle/pid_autotuner
+	url = https://github.com/jackw01/arduino-pid-autotuner.git
