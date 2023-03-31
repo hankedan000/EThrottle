@@ -1,6 +1,9 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include "can.h"
+#include "EndianUtils.h"
+#include <logging.h>
 #include "Throttle.h"
 
 // analog inputs
@@ -10,8 +13,8 @@
 #define PPS_B_PIN A1
 
 // digital outputs
-#define MOTOR_P 3// pin needs PWM support
-#define MOTOR_N 5// pin needs PWM support
+#define MOTOR_P 5// pin needs PWM support
+#define MOTOR_N 6// pin needs PWM support
 
 Throttle::RAM_Vars throttleVars;
 Throttle throttle(
@@ -23,13 +26,14 @@ Throttle throttle(
 uint8_t pidSampleRate_ms = 10;
 
 void setup() {
+  setupLogging(115200);
+
   // help reduce buzzing sounds from throttle body
   // FIXME move into Throttle class's init()
   TCCR2B = TCCR2B & B11111000 | B00000001; // for PWM frequency of 31372.55 Hz
 
   throttle.init(pidSampleRate_ms);
-  
-  Serial.begin(115200);
+  canSetup();
 }
 
 size_t serBuffIdx = 0;
@@ -37,12 +41,11 @@ char serBuff[20] = "400";
 char serCmd = '\0';
 
 void logPID_Params() {
-  Serial.print("Kp = " );
-  Serial.print(throttleVars.Kp);
-  Serial.print(", Ki = " );
-  Serial.print(throttleVars.Ki);
-  Serial.print(", Kd = " );
-  Serial.println(throttleVars.Kd);
+  INFO(
+    "Kp = %f, Ki = %f, Kd = %f",
+    throttleVars.Kp,
+    throttleVars.Ki,
+    throttleVars.Kd);
 }
 
 // a    -> auto tune PID controller
@@ -69,17 +72,16 @@ void doSerial() {
           case 'a':
             if (throttleVars.status.pidAutoTuneBusy) {
               throttle.stopPID_AutoTune();
-              Serial.println("stopped PID auto-tune");
+              INFO("stopped PID auto-tune");
             } else {
               throttle.startPID_AutoTune();
-              Serial.println("started PID auto-tune");
+              INFO("started PID auto-tune");
             }
             break;
           case 's':
             if (throttleVars.ctrl.setpointOverride.enabled) {
               throttleVars.ctrl.setpointOverride.value = val;
-              Serial.print("setpointOverride = ");
-              Serial.println(val);
+              INFO("setpointOverride = %f",val);
             }
             break;
           case 'p':
@@ -96,12 +98,10 @@ void doSerial() {
             break;
           case 'm':
             throttleVars.ctrl.setpointOverride.enabled ^= 1;
-            Serial.print("setpoint override: ");
-            if (throttleVars.ctrl.setpointOverride.enabled) {
-              Serial.println("ON");
-              Serial.println("use 's' command to set the override");
-            } else {
-              Serial.println("OFF");
+            const bool spOverrideState = throttleVars.ctrl.setpointOverride.enabled;
+            INFO("setpoint override: %s",(spOverrideState ? "ON" : "OFF"));
+            if (spOverrideState) {
+              INFO("use 's' command to set the override");
             }
             break;
         }
@@ -119,8 +119,13 @@ void doSerial() {
 }
 
 void loop() {
-  doSerial();
+  uint32_t loopStartTimeUs = micros();
 
-  // FIXME call this at a regular interval based on 'pidSampleRate_ms'
+  doSerial();
+  canLoop();
   throttle.run();
+
+  // update loop time register
+  uint16_t loopTimeUs = micros() - loopStartTimeUs;
+  EndianUtils::setBE(outPC.loopTimeUs, loopTimeUs);
 }
