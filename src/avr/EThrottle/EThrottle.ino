@@ -7,20 +7,35 @@
 #include "Throttle.h"
 
 // analog inputs
-#define TPS_A_PIN A4 // non-inverted TPS pin
-#define TPS_B_PIN A5 // inverted TPS pin
-#define PPS_A_PIN A0
-#define PPS_B_PIN A1
+#define TPS_A_PIN A0
+#define TPS_B_PIN A1
+#define PPS_A_PIN A2
+#define PPS_B_PIN A3
+#define CTRL_BUTN A4
+#define DRIVER_FB A5
 
 // digital outputs
-#define MOTOR_P 5// pin needs PWM support
-#define MOTOR_N 6// pin needs PWM support
+#define WSPEED_INT 2
+                // 3 CAN interrupt
+#define DRIVER_DIS 4
+#define DRIVER_P   5// pin needs PWM support
+#define DRIVER_N   6// pin needs PWM support
+#define DRIVER_FS  7
+#define CLUTCH_SW  8
+#define BRAKE_SW   9
+                // 10 CAN CS
+                // 11 CAN MOSI
+                // 12 CAN MISO
+                // 13 CAN SCK
 
 Throttle::RAM_Vars throttleVars;
 Throttle throttle(
   TPS_A_PIN,TPS_B_PIN,
   PPS_A_PIN,PPS_B_PIN,
-  MOTOR_P,MOTOR_N,
+  DRIVER_P,DRIVER_N,
+  DRIVER_DIS,
+  DRIVER_FS,
+  DRIVER_FB,
   &throttleVars);
 
 uint8_t pidSampleRate_ms = 10;
@@ -54,6 +69,7 @@ void logPID_Params() {
 // i### -> set 'Ki' to ###
 // d### -> set 'Kd' to ###
 // P    -> print current PID parameters
+// m    -> toggle mode (from pedal vs. from terminal)
 void doSerial() {
   while (Serial.available())
   {

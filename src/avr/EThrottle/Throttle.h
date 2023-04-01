@@ -82,8 +82,11 @@ public:
     uint8_t tpsPinB,
     uint8_t ppsPinA,
     uint8_t ppsPinB,
-    uint8_t motorPinP,
-    uint8_t motorPinN,
+    uint8_t driverPinP,
+    uint8_t driverPinN,
+    uint8_t driverPinDis,
+    uint8_t driverPinFS,
+    uint8_t driverPinFB,
     RAM_Vars *vars);
 
   /**
@@ -93,6 +96,12 @@ public:
   void
   init(
     uint8_t pidSampleRate_ms);
+
+  void
+  disableMotor() const;
+
+  void
+  enableMotor() const;
 
   /**
    * Call this method every sample interval.
@@ -124,8 +133,11 @@ private:
     uint8_t tpsPinB_;
     uint8_t ppsPinA_;
     uint8_t ppsPinB_;
-    uint8_t motorPinP_;
-    uint8_t motorPinN_;
+    uint8_t driverPinP_;
+    uint8_t driverPinN_;
+    uint8_t driverPinDis_;
+    uint8_t driverPinFS_;
+    uint8_t driverPinFB_;
 
     struct RangeCalibration
     {

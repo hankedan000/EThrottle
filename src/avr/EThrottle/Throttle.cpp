@@ -1,21 +1,28 @@
 #include "Throttle.h"
 
 #include <Arduino.h>
+#include <logging.h>
 
 Throttle::Throttle(
     uint8_t tpsPinA,
     uint8_t tpsPinB,
     uint8_t ppsPinA,
     uint8_t ppsPinB,
-    uint8_t motorPinP,
-    uint8_t motorPinN,
+    uint8_t driverPinP,
+    uint8_t driverPinN,
+    uint8_t driverPinDis,
+    uint8_t driverPinFS,
+    uint8_t driverPinFB,
     RAM_Vars *vars)
  : tpsPinA_(tpsPinA)
  , tpsPinB_(tpsPinB)
  , ppsPinA_(ppsPinA)
  , ppsPinB_(ppsPinB)
- , motorPinP_(motorPinP)
- , motorPinN_(motorPinN)
+ , driverPinP_(driverPinP)
+ , driverPinN_(driverPinN)
+ , driverPinDis_(driverPinDis)
+ , driverPinFS_(driverPinFS)
+ , driverPinFB_(driverPinFB)
  , vars_(vars)
  , pidSampleRate_ms_(100)
  , pid_(&pidIn_,&pidOut_,&pidSetpoint_,0,0,0, DIRECT)
@@ -48,12 +55,15 @@ Throttle::init(
   pinMode(ppsPinA_, INPUT);
   pinMode(ppsPinB_, INPUT);
 
-  pinMode(motorPinP_, OUTPUT);
-  pinMode(motorPinN_, OUTPUT);
+  pinMode(driverPinP_, OUTPUT);
+  pinMode(driverPinN_, OUTPUT);
+  pinMode(driverPinDis_, OUTPUT);
+  pinMode(driverPinFS_, INPUT);
+  pinMode(driverPinFB_, INPUT);
 
-  // disable motor
-  analogWrite(motorPinP_, 0);
-  analogWrite(motorPinN_, 0);
+  enableMotor();
+  analogWrite(driverPinP_, 0);
+  analogWrite(driverPinN_, 0);
   
   // setup the PID controller class
   pid_.SetMode(AUTOMATIC);
@@ -69,6 +79,18 @@ Throttle::init(
   pid_.SetSampleTime(pidSampleRate_ms_);
   tuner_.setZNMode(PIDAutotuner::ZNModeNoOvershoot);
   tuner_.setLoopInterval(pidSampleRate_ms_ * 1000);
+}
+
+void
+Throttle::disableMotor() const
+{
+  digitalWrite(driverPinDis_, 1);
+}
+
+void
+Throttle::enableMotor() const
+{
+  digitalWrite(driverPinDis_, 0);
 }
 
 void
@@ -116,19 +138,12 @@ Throttle::doPedal()
 
   // TODO add logic to safety check the raw ADC values
 
-  // Serial.print("ppsA: ");
-  // Serial.print(vars_->ppsA);
-  // Serial.print(", ppsB: ");
-  // Serial.println(vars_->ppsB);
-
   // normalize PPS readings based on calibrated min/max values
   int16_t ppsA_Norm = map(vars_->ppsA, ppsCalA_.min, ppsCalA_.max, 0, 10000);
   int16_t ppsB_Norm = map(vars_->ppsB, ppsCalB_.min, ppsCalB_.max, 0, 10000);
 
-  // Serial.print("ppsA_Norm: ");
-  // Serial.print(ppsA_Norm);
-  // Serial.print(", ppsB_Norm: ");
-  // Serial.println(ppsB_Norm);
+  DEBUG("ppsA: %d, ppsB: %d", vars_->ppsA, vars_->ppsB);
+  DEBUG("ppsA_Norm: %d, ppsB_Norm: %d", ppsA_Norm, ppsB_Norm);
 
   // once we've safety checked the ADCs we can just use one sensor value
   // to compute the final PPS percentage. i'm favoring ppsb here because
@@ -142,19 +157,20 @@ Throttle::doPedal()
     vars_->pps = 10000;
   }
 
-  // Serial.print("pps:");
-  // Serial.println(vars_->pps);
+  DEBUG("pps: %d", pps);
 }
 
 void
 Throttle::doThrottle()
 {
-  // vars_->tpsA = analogRead(tpsPinA_);
+  vars_->tpsA = analogRead(tpsPinA_);
   vars_->tpsB = analogRead(tpsPinB_);
 
   // normalize TPS readings based on calibrated min/max values
   int16_t tpsA_Norm = map(vars_->tpsA, tpsCalA_.min, tpsCalA_.max, 0, 10000);
   int16_t tpsB_Norm = map(vars_->tpsB, tpsCalB_.min, tpsCalB_.max, 0, 10000);
+
+  DEBUG("tpsA: %d, tpsB: %d", tpsA_Norm, tpsB_Norm);
 
   int16_t setpoint = 0;
   if (vars_->ctrl.setpointOverride.enabled) {
@@ -168,8 +184,7 @@ Throttle::doThrottle()
   pidIn_ = tpsB_Norm;
   pid_.Compute();
 
-  // Serial.print("pidIn_: ");
-  // Serial.println(pidIn_);
+  DEBUG("pidIn_: %f", pidIn_);
 
   // handle PID auto-tune logic
   if (vars_->status.pidAutoTuneBusy) {
@@ -178,13 +193,11 @@ Throttle::doThrottle()
     if (tuner_.isFinished()) {
       stopPID_AutoTune();
 
-      Serial.println("auto tune done!");
-      Serial.print("Kp = ");
-      Serial.println(tuner_.getKp());
-      Serial.print("Ki = ");
-      Serial.println(tuner_.getKi());
-      Serial.print("Kd = ");
-      Serial.println(tuner_.getKd());
+      INFO("auto tune done!");
+      INFO("Kp: %f; Ki: %f; Kd: %f",
+        tuner_.getKp(),
+        tuner_.getKi(),
+        tuner_.getKd());
     }
   }
 
@@ -196,18 +209,18 @@ Throttle::doThrottle()
 #ifdef SUPPORT_H_BRIDGE
   // handle h-bridge polarity inversion logic
   if (vars_->motorOut > 0) {
-    analogWrite(motorPinP_, vars_->motorOut);
-    analogWrite(motorPinN_, 0);
+    analogWrite(driverPinP_, vars_->motorOut);
+    analogWrite(driverPinN_, 0);
   } else if (vars_->motorOut < 0) {
-    analogWrite(motorPinP_, 0);
-    analogWrite(motorPinN_, vars_->motorOut * -1);// * -1 to write PWM magnitude only
+    analogWrite(driverPinP_, 0);
+    analogWrite(driverPinN_, vars_->motorOut * -1);// * -1 to write PWM magnitude only
   } else {
-    analogWrite(motorPinP_, 0);
-    analogWrite(motorPinN_, 0);
+    analogWrite(driverPinP_, 0);
+    analogWrite(driverPinN_, 0);
   }
 #else
   // no h-bridge means we can only drive the motor 1 way
-  analogWrite(motorPinP_, vars_->motorOut);
-  analogWrite(motorPinN_, 0);
+  analogWrite(driverPinP_, vars_->motorOut);
+  analogWrite(driverPinN_, 0);
 #endif
 }
