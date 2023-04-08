@@ -65,21 +65,12 @@ struct ADC_MappingControl_T
 
 struct Page1_T
 {
-  uint16_t adcMappingCurveA_xBins[ADC_MAPPING_CURVE_N_BINS];
-  int16_t  adcMappingCurveA_yBins[ADC_MAPPING_CURVE_N_BINS];
-  uint16_t adcMappingCurveB_xBins[ADC_MAPPING_CURVE_N_BINS];
-  int16_t  adcMappingCurveB_yBins[ADC_MAPPING_CURVE_N_BINS];
-  uint16_t adcMappingCurveC_xBins[ADC_MAPPING_CURVE_N_BINS];
-  int16_t  adcMappingCurveC_yBins[ADC_MAPPING_CURVE_N_BINS];
-  uint16_t adcMappingCurveD_xBins[ADC_MAPPING_CURVE_N_BINS];
-  int16_t  adcMappingCurveD_yBins[ADC_MAPPING_CURVE_N_BINS];
-  ADC_MappingControl_T adc0MappingCtrl;
-  ADC_MappingControl_T adc1MappingCtrl;
-  ADC_MappingControl_T adc2MappingCtrl;
-  ADC_MappingControl_T adc3MappingCtrl;
-  ADC_MappingControl_T adc4MappingCtrl;
-  ADC_MappingControl_T adc5MappingCtrl;
-  uint8_t reserved[26];
+  // Throttle PID controller coefficients
+  // range: [0 to 10000] (ie. 0.00 to 1.00)
+  uint16_t throttleKp;
+  uint16_t throttleKi;
+  uint16_t throttleKd;
+  uint8_t reserved[122];
 };
 static_assert(sizeof(Page1_T) == PAGE1_SIZE);
 static_assert(sizeof(Page1_T) <= MEGA_CAN_EXT_MAX_FLASH_TABLE_SIZE);

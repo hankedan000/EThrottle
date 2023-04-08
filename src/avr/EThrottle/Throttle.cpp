@@ -38,8 +38,8 @@ Throttle::Throttle(
   tpsCalB_.min = 190;
   tpsCalB_.max = 856;
 
-  // FIXME restore coefficients from EEPROM
-  updatePID_Coeffs(0.33,0.17,0.0);
+  // zero out coefficients to be safe
+  updatePID_Coeffs(0.0,0.0,0.0);
 }
 
 void
