@@ -2,9 +2,10 @@
 #define TABLES_H_
 
 #include <EEPROM.h>
+#include <stdint.h>
 #include "MegaCAN_ExtDevice.h"
 #include "MegaCAN_RT_BroadcastHelper.h"
-#include "stdint.h"
+#include "Throttle.h"
 
 #define PAGE0_SIZE 128
 #define PAGE1_SIZE 128
@@ -25,9 +26,9 @@ struct OutPC_T;
 
 struct OutPC_T
 {
-  uint8_t canStatus;
-  uint8_t canErrorCount;
-  uint16_t loopTimeUs;
+  uint8_t canStatus;                // offset 0
+  uint8_t canErrorCount;            // offset 1
+  uint16_t loopTimeUs;              // offset 2
   union Status0_T
   {
     struct Status0Bits_T
@@ -38,16 +39,10 @@ struct OutPC_T
       uint8_t currFlashTable : 4;
     } bits;
     uint8_t value;
-  } status0;
-  uint8_t reserved0[5];
-  // raw ADC measurement values
-  uint16_t adc0;
-  uint16_t adc1;
-  uint16_t adc2;
-  uint16_t adc3;
-  uint16_t adc4;
-  uint16_t adc5;
-  uint8_t reserved1[106];
+  } status0;                        // offset 4
+  uint8_t reserved0[5];             // offset 5
+  Throttle::OutVars throttleOutVars;// offset 10 (19bytes)
+  uint8_t reserved1[99];
 };
 static_assert(sizeof(OutPC_T) == PAGE0_SIZE);
 

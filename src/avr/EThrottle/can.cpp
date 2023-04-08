@@ -1,7 +1,7 @@
 #include "can.h"
 
 SET_MEGA_CAN_SIG("EThrottle");
-SET_MEGA_CAN_REV("EThrottle-0.1.0    ");
+SET_MEGA_CAN_REV("OpenGPIO-0.1.0     ");
 
 // external interrupt service routine for CAN message on MCP2515
 void

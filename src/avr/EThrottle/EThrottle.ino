@@ -28,7 +28,7 @@
                 // 12 CAN MISO
                 // 13 CAN SCK
 
-Throttle::RAM_Vars throttleVars;
+Throttle::OutVars *throttleVars = &outPC.throttleOutVars;
 Throttle throttle(
   TPS_A_PIN,TPS_B_PIN,
   PPS_A_PIN,PPS_B_PIN,
@@ -36,7 +36,7 @@ Throttle throttle(
   DRIVER_DIS,
   DRIVER_FS,
   DRIVER_FB,
-  &throttleVars);
+  throttleVars);
 
 uint8_t pidSampleRate_ms = 10;
 
@@ -58,9 +58,9 @@ char serCmd = '\0';
 void logPID_Params() {
   INFO(
     "Kp = %f, Ki = %f, Kd = %f",
-    throttleVars.Kp,
-    throttleVars.Ki,
-    throttleVars.Kd);
+    throttle.getKp(),
+    throttle.getKi(),
+    throttle.getKd());
 }
 
 // a    -> auto tune PID controller
@@ -86,7 +86,7 @@ void doSerial() {
         }
         switch (serCmd) {
           case 'a':
-            if (throttleVars.status.pidAutoTuneBusy) {
+            if (throttleVars->status.pidAutoTuneBusy) {
               throttle.stopPID_AutoTune();
               INFO("stopped PID auto-tune");
             } else {
@@ -95,36 +95,43 @@ void doSerial() {
             }
             break;
           case 's':
-            if (throttleVars.ctrl.setpointOverride.enabled) {
-              throttleVars.ctrl.setpointOverride.value = val;
+            if (throttleVars->ctrl.setpointOverride.enabled) {
+              throttleVars->ctrl.setpointOverride.value = val;
               INFO("setpointOverride = %f",val);
             }
             break;
           case 'p':
-            throttleVars.Kp = val;
+            throttle.updatePID_Coeffs(
+              val,
+              throttle.getKi(),
+              throttle.getKd());
+            logPID_Params();
             break;
           case 'i':
-            throttleVars.Ki = val;
+            throttle.updatePID_Coeffs(
+              throttle.getKp(),
+              val,
+              throttle.getKd());
+            logPID_Params();
             break;
           case 'd':
-            throttleVars.Kd = val;
+            throttle.updatePID_Coeffs(
+              throttle.getKp(),
+              throttle.getKi(),
+              val);
+            logPID_Params();
             break;
           case 'P':
             logPID_Params();
             break;
           case 'm':
-            throttleVars.ctrl.setpointOverride.enabled ^= 1;
-            const bool spOverrideState = throttleVars.ctrl.setpointOverride.enabled;
+            throttleVars->ctrl.setpointOverride.enabled ^= 1;
+            const bool spOverrideState = throttleVars->ctrl.setpointOverride.enabled;
             INFO("setpoint override: %s",(spOverrideState ? "ON" : "OFF"));
             if (spOverrideState) {
               INFO("use 's' command to set the override");
             }
             break;
-        }
-
-        if (serCmd == 'p' || serCmd == 'i' || serCmd == 'd') {
-          throttle.updatePID_Coeffs();
-          logPID_Params();
         }
 
         serCmd = '\0';// restart command parsing

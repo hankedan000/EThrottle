@@ -25,9 +25,9 @@ public:
   /**
    * various RAM variables that we allow public access to
    * for instrumentation and data logging purposes.
-   * Users should not modified these values!!!
+   * All values are stored in big-endian (MegaSquirt is BE).
    */
-  struct RAM_Vars
+  struct OutVars
   {
     // ADC readings from throttle position sensors A & B
     // range: [0 to 1023]
@@ -45,9 +45,9 @@ public:
     // range: [-10000 to 10000] (ie. -100 to 100%)
     int16_t pps;
 
-    // P,I, and D coefficient fed into the PID controller
-    // to update this settings, call updatePID_Coeffs()
-    double Kp, Ki, Kd;
+    // Throttle position the PID controller is targeting
+    // range: [-10000 to 10000] (ie. -100 to 100%)
+    int16_t tpsTarget;
 
     // PWM motor driver output
     // range: [-255 to 255] if in h-bridge mode (negative means reverse)
@@ -87,7 +87,7 @@ public:
     uint8_t driverPinDis,
     uint8_t driverPinFS,
     uint8_t driverPinFB,
-    RAM_Vars *vars);
+    OutVars *outVars);
 
   /**
    * Configures IO pins and internal classes.
@@ -113,7 +113,19 @@ public:
 
   // pushes the PID coefficients into the controller
   void
-  updatePID_Coeffs();
+  updatePID_Coeffs(
+    double Kp,
+    double Ki,
+    double Kd);
+
+  double
+  getKp();
+
+  double
+  getKi();
+
+  double
+  getKd();
 
   void
   startPID_AutoTune();
@@ -156,12 +168,41 @@ private:
     // 'max' value is the ADC reading at 100% throttle
     RangeCalibration tpsCalA_;
     RangeCalibration tpsCalB_;
+    
+    // ADC readings from throttle position sensors A & B
+    // range: [0 to 1023]
+    uint16_t tpsA_;
+    uint16_t tpsB_;
+    // finalized throttle position based on both A & B sensor readings
+    // range: [-10000 to 10000] (ie. -100 to 100%)
+    int16_t tps_;
+
+    // ADC readings from pedal position sensors A & B
+    // range: [0 to 1023]
+    uint16_t ppsA_;
+    uint16_t ppsB_;
+    // finalized pedal position based on both A & B sensor readings
+    // range: [-10000 to 10000] (ie. -100 to 100%)
+    int16_t pps_;
+
+    // Throttle position the PID controller is targeting
+    // range: [-10000 to 10000] (ie. -100 to 100%)
+    int16_t tpsTarget_;
+
+    // PWM motor driver output
+    // range: [-255 to 255] if in h-bridge mode (negative means reverse)
+    //        [0 to 255] if in normal mode
+    int16_t motorOut_;
 
     // RAM variables
-    RAM_Vars *vars_;
+    OutVars *outVars_;
 
     // rate at which the PID algorith runs in milliseconds
     uint8_t pidSampleRate_ms_;
+
+    // P,I, and D coefficient fed into the PID controller
+    // to update this settings, call updatePID_Coeffs()
+    double Kp, Ki, Kd;
 
     // current real-world TPS reading fed into the PID controller
     double pidIn_;
