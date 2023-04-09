@@ -92,4 +92,13 @@ static const MegaCAN::TableDescriptor_t TABLES[NUM_TABLES] = {
   {MegaCAN::tempPage, sizeof(Page2_T), MegaCAN::TableType_E::eFlash, PAGE2_FLASH_OFFSET}  // table 2
 };
 
+// accessor utilities
+void
+loadThrottlePID_FromFlash(
+  Throttle &throttle);
+
+void
+storeThrottlePID_ToFlash(
+  Throttle &throttle);
+
 #endif

@@ -10,6 +10,21 @@ canISR()
   canDev.interrupt();
 }
 
+// declared in EThrottle.ino
+extern Throttle throttle;
+
+// called any time a table is burned to over CAN
+void
+onTableBurned(
+  uint8_t table)
+{
+  if (table == 1)
+  {
+    loadThrottlePID_FromFlash(throttle);
+  }
+  INFO("table %d burned!", table);
+}
+
 void
 canSetup()
 {
@@ -17,6 +32,7 @@ canSetup()
 
   // MCP2515 configuration
   canDev.init();
+  canDev.setOnTableBurnedCallback(onTableBurned);
   pinMode(CAN_INT, INPUT_PULLUP);// Configuring pin for CAN interrupt input
   attachInterrupt(digitalPinToInterrupt(CAN_INT), canISR, LOW);
 

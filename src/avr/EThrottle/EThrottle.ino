@@ -3,7 +3,6 @@
 
 #include "can.h"
 #include "EndianUtils.h"
-#include "FlashUtils.h"
 #include <logging.h>
 #include "Throttle.h"
 
@@ -41,23 +40,6 @@ Throttle throttle(
 
 uint8_t pidSampleRate_ms = 10;
 
-void
-loadThrottlePID_FromFlash()
-{
-  throttle.updatePID_Coeffs(
-    FlashUtils::flashRead_BE<uint16_t>(PAGE1_FIELD_OFFSET(throttleKp)) / 100.0,
-    FlashUtils::flashRead_BE<uint16_t>(PAGE1_FIELD_OFFSET(throttleKi)) / 100.0,
-    FlashUtils::flashRead_BE<uint16_t>(PAGE1_FIELD_OFFSET(throttleKd)) / 100.0);
-}
-
-void
-storeThrottlePID_ToFlash()
-{
-  FlashUtils::flashWrite_BE(PAGE1_FIELD_OFFSET(throttleKp), (uint16_t)(throttle.getKp() * 100.0));
-  FlashUtils::flashWrite_BE(PAGE1_FIELD_OFFSET(throttleKi), (uint16_t)(throttle.getKi() * 100.0));
-  FlashUtils::flashWrite_BE(PAGE1_FIELD_OFFSET(throttleKd), (uint16_t)(throttle.getKd() * 100.0));
-}
-
 void setup() {
   setupLogging(115200);
 
@@ -66,7 +48,7 @@ void setup() {
   TCCR2B = TCCR2B & B11111000 | B00000001; // for PWM frequency of 31372.55 Hz
 
   throttle.init(pidSampleRate_ms);
-  loadThrottlePID_FromFlash();
+  loadThrottlePID_FromFlash(throttle);
   canSetup();
 }
 
