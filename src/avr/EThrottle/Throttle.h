@@ -18,8 +18,8 @@ public:
 
   enum SetpointSource_E
   {
-    eSS_PPS,
-    eSS_User
+    eSS_PPS = 0,
+    eSS_User = 1
   };
 
   /**
@@ -54,20 +54,9 @@ public:
     //        [0 to 255] if in normal mode
     int16_t motorOut;
 
-    struct Control
-    {
-      // allows user to override the PID setup value for testing
-      // normally the set point comes from the normalize pedal
-      // position, but this value can be used instead if enabled.
-      struct SetpointOverride
-      {
-        // range: [0 to 10000] (ie. 0 to 100%)
-        uint16_t value    : 14;
-        uint16_t reserved : 1;
-        // set to 1 to enable override
-        uint16_t enabled  : 1;
-      } setpointOverride;
-    } ctrl;
+    // motor current in milliamps
+    // range: [0 to 65535] in milliamps
+    uint16_t motorCurrent_mA;
 
     struct Status
     {
@@ -102,6 +91,23 @@ public:
 
   void
   enableMotor() const;
+
+  void
+  setSetpointSource(
+    SetpointSource_E source);
+
+  SetpointSource_E
+  getSetpointSource() const;
+
+  /**
+   * Setter for the override setpoint value. Only does something if
+   * the setpoint source is set to 'eSS_User' via setSetpointSource().
+   * @param[in] value
+   * the override value in percent (0.0 to 100.0)
+   */
+  void
+  setSetpointOverride(
+    double value);
 
   /**
    * Call this method every sample interval.
@@ -193,6 +199,14 @@ private:
     // range: [-255 to 255] if in h-bridge mode (negative means reverse)
     //        [0 to 255] if in normal mode
     int16_t motorOut_;
+    
+    // ADC readings from motor driver current feedback pin
+    // range: [0 to 1023]
+    uint16_t driverFB_;
+
+    // Motor current calculated based on driver feedback pin voltage
+    // range: [0 to 65535] in milliamps
+    uint16_t motorCurrent_mA_;
 
     // RAM variables
     OutVars *outVars_;
@@ -216,6 +230,12 @@ private:
     PID pid_;
 
     PIDAutotuner tuner_;
+
+    SetpointSource_E setpointSource_;
+
+    // user specified setpoint via setSetpointOverride()
+    // range: [0 to 10000] (ie. 0% to 100%)
+    uint16_t userSetpoint_;
 
 };
 

@@ -96,9 +96,9 @@ void doSerial() {
             }
             break;
           case 's':
-            if (throttleVars->ctrl.setpointOverride.enabled) {
-              throttleVars->ctrl.setpointOverride.value = val;
-              INFO("setpointOverride = %f",val);
+            if (throttle.getSetpointSource() == Throttle::SetpointSource_E::eSS_User) {
+              throttle.setSetpointOverride(val);
+              INFO("setpointOverride = %d",(uint16_t)val);
             }
             break;
           case 'p':
@@ -126,8 +126,17 @@ void doSerial() {
             logPID_Params();
             break;
           case 'm':
-            throttleVars->ctrl.setpointOverride.enabled ^= 1;
-            const bool spOverrideState = throttleVars->ctrl.setpointOverride.enabled;
+            bool spOverrideState = false;
+            switch (throttle.getSetpointSource())
+            {
+              case Throttle::SetpointSource_E::eSS_PPS:
+                throttle.setSetpointSource(Throttle::SetpointSource_E::eSS_User);
+                spOverrideState = true;
+                break;
+              case Throttle::SetpointSource_E::eSS_User:
+                throttle.setSetpointSource(Throttle::SetpointSource_E::eSS_PPS);
+                break;
+            }
             INFO("setpoint override: %s",(spOverrideState ? "ON" : "OFF"));
             if (spOverrideState) {
               INFO("use 's' command to set the override");

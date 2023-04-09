@@ -27,6 +27,8 @@ Throttle::Throttle(
  , outVars_(outVars)
  , pidSampleRate_ms_(100)
  , pid_(&pidIn_,&pidOut_,&pidSetpoint_,0,0,0, DIRECT)
+ , setpointSource_(SetpointSource_E::eSS_PPS)
+ , userSetpoint_(0)
 {
   // FIXME restore clibration from EEPROM
   ppsCalA_.min = 183;
@@ -92,6 +94,32 @@ Throttle::enableMotor() const
 }
 
 void
+Throttle::setSetpointSource(
+  SetpointSource_E source)
+{
+  setpointSource_ = source;
+}
+
+Throttle::SetpointSource_E
+Throttle::getSetpointSource() const
+{
+  return setpointSource_;
+}
+
+void
+Throttle::setSetpointOverride(
+  double value)
+{
+  if (setpointSource_ == SetpointSource_E::eSS_User)
+  {
+    if (value >= 0.0 && value <= 100.0)
+    {
+      userSetpoint_ = value * 100.0;
+    }
+  }
+}
+
+void
 Throttle::run()
 {
   doPedal();
@@ -107,6 +135,7 @@ Throttle::run()
     EndianUtils::setBE(outVars_->pps, pps_);
     EndianUtils::setBE(outVars_->tpsTarget, tpsTarget_);
     EndianUtils::setBE(outVars_->motorOut, motorOut_);
+    EndianUtils::setBE(outVars_->motorCurrent_mA, motorCurrent_mA_);
   }
 }
 
@@ -147,8 +176,6 @@ Throttle::startPID_AutoTune()
   const uint16_t AUTOTUNE_TARGET = 5000;// 50%
 
   outVars_->status.pidAutoTuneBusy = 1;
-  outVars_->ctrl.setpointOverride.enabled = 1;
-  outVars_->ctrl.setpointOverride.value = AUTOTUNE_TARGET;// 50%
   tuner_.setTargetInputValue(AUTOTUNE_TARGET);
   tuner_.startTuningLoop(micros());
 }
@@ -157,8 +184,6 @@ void
 Throttle::stopPID_AutoTune()
 {
   outVars_->status.pidAutoTuneBusy = 0;
-  outVars_->ctrl.setpointOverride.enabled = 0;
-  outVars_->ctrl.setpointOverride.value = 0;
 }
 
 void
@@ -196,20 +221,37 @@ Throttle::doThrottle()
 {
   tpsA_ = analogRead(tpsPinA_);
   tpsB_ = analogRead(tpsPinB_);
+  driverFB_ = analogRead(driverPinFB_);
 
   // normalize TPS readings based on calibrated min/max values
   int16_t tpsA_Norm = map(tpsA_, tpsCalA_.min, tpsCalA_.max, 0, 10000);
   int16_t tpsB_Norm = map(tpsB_, tpsCalB_.min, tpsCalB_.max, 0, 10000);
-
   DEBUG("tpsA: %d, tpsB: %d", tpsA_Norm, tpsB_Norm);
+
+  // feedback pin drives 1/375th the current to ground through 100ohm resistor.
+  // V_fb = ADC * 5.0v / 1023
+  // V_fb = I * R = I_fb * 100ohm
+  // I_fb = I_m * 1/375
+  //  V_fb -> voltage see over 100ohm resistor
+  //  I_fb -> current out of driver's feedback pin (proportional to I_m)
+  //  I_m  -> current through motor
+  // solve for 'I_m' using the above equations:
+  //  I_m = ADC * (5/1023) * (375/100)
+  //  I_m = ADC * 0.018328 <- in amps
+  motorCurrent_mA_ = driverFB_ * 18.328;
+  DEBUG("driverFB: %4d; motorCurrent: %4d mA", driverFB_, motorCurrent_mA_);
 
   // TODO merge tpsA and tpsB & safety check
   tps_ = tpsB_Norm;
 
-  if (outVars_->ctrl.setpointOverride.enabled) {
-    tpsTarget_ = outVars_->ctrl.setpointOverride.value;
-  } else {
-    tpsTarget_ = pps_;
+  switch (setpointSource_)
+  {
+    case SetpointSource_E::eSS_PPS:
+      tpsTarget_ = pps_;
+      break;
+    case SetpointSource_E::eSS_User:
+      tpsTarget_ = userSetpoint_;
+      break;
   }
 
   // update PID control variables
