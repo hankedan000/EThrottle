@@ -61,6 +61,18 @@ Throttle::init(
   pinMode(driverPinFS_, INPUT);
   pinMode(driverPinFB_, INPUT);
 
+  // help reduce buzzing sounds from throttle body
+  // set timer0 prescaler of 8 (gives PWM freq of 7812.5Hz)
+  // FIXME timer0 is used for digitaly pins 5 and 6 which
+  // doesn't scale with programmable I/O pins like class claims
+  #define TMR0_CLKPR_OFF  0x0
+  #define TMR0_CLKPR_1    0x1
+  #define TMR0_CLKPR_8    0x2
+  #define TMR0_CLKPR_64   0x3
+  #define TMR0_CLKPR_256  0x4
+  #define TMR0_CLKPR_1024 0x5
+  TCCR0B = TMR0_CLKPR_8;
+
   enableMotor();
   analogWrite(driverPinP_, 0);
   analogWrite(driverPinN_, 0);

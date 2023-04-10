@@ -43,10 +43,6 @@ uint8_t pidSampleRate_ms = 10;
 void setup() {
   setupLogging(115200);
 
-  // help reduce buzzing sounds from throttle body
-  // FIXME move into Throttle class's init()
-  TCCR2B = TCCR2B & B11111000 | B00000001; // for PWM frequency of 31372.55 Hz
-
   throttle.init(pidSampleRate_ms);
   loadThrottlePID_FromFlash(throttle);
   canSetup();
