@@ -7,20 +7,11 @@
 #include "Throttle.h"
 
 // analog inputs
-#define TPS_A_PIN A0
-#define TPS_B_PIN A1
-#define PPS_A_PIN A2
-#define PPS_B_PIN A3
 #define CTRL_BUTN A4
-#define DRIVER_FB A5
 
 // digital outputs
 #define WSPEED_INT 2
                 // 3 CAN interrupt
-#define DRIVER_DIS 4
-#define DRIVER_P   5// pin needs PWM support
-#define DRIVER_N   6// pin needs PWM support
-#define DRIVER_FS  7
 #define CLUTCH_SW  8
 #define BRAKE_SW   9
                 // 10 CAN CS
@@ -28,22 +19,13 @@
                 // 12 CAN MISO
                 // 13 CAN SCK
 
+#define PID_SAMPLE_RATE_MS 10// 10ms
 Throttle::OutVars *throttleVars = &outPC.throttleOutVars;
-Throttle throttle(
-  TPS_A_PIN,TPS_B_PIN,
-  PPS_A_PIN,PPS_B_PIN,
-  DRIVER_P,DRIVER_N,
-  DRIVER_DIS,
-  DRIVER_FS,
-  DRIVER_FB,
-  throttleVars);
-
-uint8_t pidSampleRate_ms = 10;
 
 void setup() {
   setupLogging(115200);
 
-  throttle.init(pidSampleRate_ms);
+  throttle.init(PID_SAMPLE_RATE_MS, throttleVars);
   loadThrottlePID_FromFlash(throttle);
   canSetup();
 }
@@ -54,10 +36,10 @@ char serCmd = '\0';
 
 void logPID_Params() {
   INFO(
-    "Kp = %f, Ki = %f, Kd = %f",
-    throttle.getKp(),
-    throttle.getKi(),
-    throttle.getKd());
+    "Kp = %d, Ki = %d, Kd = %d",
+    (uint16_t)(throttle.getKp() * 100),
+    (uint16_t)(throttle.getKi() * 100),
+    (uint16_t)(throttle.getKd() * 100));
 }
 
 // a    -> auto tune PID controller

@@ -4,6 +4,14 @@
 #include <Arduino.h>
 #include <logging.h>
 
+Throttle throttle(
+  TPS_A_PIN,TPS_B_PIN,
+  PPS_A_PIN,PPS_B_PIN,
+  DRIVER_P,DRIVER_N,
+  DRIVER_DIS,
+  DRIVER_FS,
+  DRIVER_FB);
+
 Throttle::Throttle(
     uint8_t tpsPinA,
     uint8_t tpsPinB,
@@ -13,8 +21,7 @@ Throttle::Throttle(
     uint8_t driverPinN,
     uint8_t driverPinDis,
     uint8_t driverPinFS,
-    uint8_t driverPinFB,
-    OutVars *outVars)
+    uint8_t driverPinFB)
  : tpsPinA_(tpsPinA)
  , tpsPinB_(tpsPinB)
  , ppsPinA_(ppsPinA)
@@ -24,7 +31,7 @@ Throttle::Throttle(
  , driverPinDis_(driverPinDis)
  , driverPinFS_(driverPinFS)
  , driverPinFB_(driverPinFB)
- , outVars_(outVars)
+ , outVars_(nullptr)
  , pidSampleRate_ms_(100)
  , pid_(&pidIn_,&pidOut_,&pidSetpoint_,0,0,0, DIRECT)
  , setpointSource_(SetpointSource_E::eSS_PPS)
@@ -46,20 +53,20 @@ Throttle::Throttle(
 
 void
 Throttle::init(
-    uint8_t pidSampleRate_ms)
+    uint8_t pidSampleRate_ms,
+    OutVars *outVars)
 {
   pidSampleRate_ms_ = pidSampleRate_ms;
-
-  pinMode(tpsPinA_, INPUT);
-  pinMode(tpsPinB_, INPUT);
-  pinMode(ppsPinA_, INPUT);
-  pinMode(ppsPinB_, INPUT);
+  outVars_ = outVars;
 
   pinMode(driverPinP_, OUTPUT);
   pinMode(driverPinN_, OUTPUT);
   pinMode(driverPinDis_, OUTPUT);
   pinMode(driverPinFS_, INPUT);
-  pinMode(driverPinFB_, INPUT);
+
+  enableMotor();
+  analogWrite(driverPinP_,0);
+  analogWrite(driverPinN_,0);
 
   // help reduce buzzing sounds from throttle body
   // set timer0 prescaler of 8 (gives PWM freq of 7812.5Hz)
@@ -73,10 +80,6 @@ Throttle::init(
   #define TMR0_CLKPR_1024 0x5
   TCCR0B = TMR0_CLKPR_8;
 
-  enableMotor();
-  analogWrite(driverPinP_, 0);
-  analogWrite(driverPinN_, 0);
-  
   // setup the PID controller class
   pid_.SetMode(AUTOMATIC);
 #ifdef SUPPORT_H_BRIDGE
@@ -136,6 +139,8 @@ Throttle::run()
 {
   doPedal();
   doThrottle();
+
+  DEBUG("driverFB: %4d; motorCurrent: %4d mA", driverFB_, motorCurrent_mA_);
 
   if (outVars_)
   {
@@ -199,6 +204,27 @@ Throttle::stopPID_AutoTune()
 }
 
 void
+Throttle::doCurrentMonitor()
+{
+  // FIXME this gets called within timer0 output compare interrupt
+  // context. if i perform this analogRead() it seems like we never
+  // unblock from the call.
+  driverFB_ = analogRead(driverPinFB_);
+
+  // feedback pin drives 1/375th the current to ground through 100ohm resistor.
+  // V_fb = ADC * 5.0v / 1023
+  // V_fb = I * R = I_fb * 100ohm
+  // I_fb = I_m * 1/375
+  //  V_fb -> voltage see over 100ohm resistor
+  //  I_fb -> current out of driver's feedback pin (proportional to I_m)
+  //  I_m  -> current through motor
+  // solve for 'I_m' using the above equations:
+  //  I_m = ADC * (5/1023) * (375/100)
+  //  I_m = ADC * 0.018328 <- in amps
+  motorCurrent_mA_ = driverFB_ * 18.328;
+}
+
+void
 Throttle::doPedal()
 {
   ppsA_ = analogRead(ppsPinA_);
@@ -233,25 +259,11 @@ Throttle::doThrottle()
 {
   tpsA_ = analogRead(tpsPinA_);
   tpsB_ = analogRead(tpsPinB_);
-  driverFB_ = analogRead(driverPinFB_);
 
   // normalize TPS readings based on calibrated min/max values
   int16_t tpsA_Norm = map(tpsA_, tpsCalA_.min, tpsCalA_.max, 0, 10000);
   int16_t tpsB_Norm = map(tpsB_, tpsCalB_.min, tpsCalB_.max, 0, 10000);
   DEBUG("tpsA: %d, tpsB: %d", tpsA_Norm, tpsB_Norm);
-
-  // feedback pin drives 1/375th the current to ground through 100ohm resistor.
-  // V_fb = ADC * 5.0v / 1023
-  // V_fb = I * R = I_fb * 100ohm
-  // I_fb = I_m * 1/375
-  //  V_fb -> voltage see over 100ohm resistor
-  //  I_fb -> current out of driver's feedback pin (proportional to I_m)
-  //  I_m  -> current through motor
-  // solve for 'I_m' using the above equations:
-  //  I_m = ADC * (5/1023) * (375/100)
-  //  I_m = ADC * 0.018328 <- in amps
-  motorCurrent_mA_ = driverFB_ * 18.328;
-  DEBUG("driverFB: %4d; motorCurrent: %4d mA", driverFB_, motorCurrent_mA_);
 
   // TODO merge tpsA and tpsB & safety check
   tps_ = tpsB_Norm;
@@ -281,10 +293,11 @@ Throttle::doThrottle()
       stopPID_AutoTune();
 
       INFO("auto tune done!");
-      INFO("Kp: %f; Ki: %f; Kd: %f",
-        tuner_.getKp(),
-        tuner_.getKi(),
-        tuner_.getKd());
+      INFO(
+        "Kp: %d, Ki: %d, Kd: %d",
+        (uint16_t)(tuner_.getKp() * 100),
+        (uint16_t)(tuner_.getKi() * 100),
+        (uint16_t)(tuner_.getKd() * 100));
     }
   }
 
