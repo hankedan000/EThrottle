@@ -70,7 +70,18 @@ struct Page1_T
   uint16_t throttleKp;
   uint16_t throttleKi;
   uint16_t throttleKd;
-  uint8_t reserved[122];
+  uint16_t reserved0;
+  // min/max ADC range calibration for Pedal Position Sensors (PPS)
+  //  min is ADC at 0% throttle
+  //  max is ADC at 100% throttle
+  Throttle::RangeCalibration ppsCalA;
+  Throttle::RangeCalibration ppsCalB;
+  // min/max ADC range calibration for Throttle Position Sensors (TPS)
+  //  min is ADC at 0% throttle
+  //  max is ADC at 100% throttle
+  Throttle::RangeCalibration tpsCalA;
+  Throttle::RangeCalibration tpsCalB;
+  uint8_t reserved[104];
 };
 static_assert(sizeof(Page1_T) == PAGE1_SIZE);
 static_assert(sizeof(Page1_T) <= MEGA_CAN_EXT_MAX_FLASH_TABLE_SIZE);
@@ -99,6 +110,10 @@ loadThrottlePID_FromFlash(
 
 void
 storeThrottlePID_ToFlash(
+  Throttle &throttle);
+
+void
+loadSensorCalibrationsFromFlash(
   Throttle &throttle);
 
 #endif

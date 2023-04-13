@@ -35,6 +35,12 @@ public:
     eSS_User = 1
   };
 
+  struct RangeCalibration
+  {
+    uint16_t min;
+    uint16_t max;
+  };
+
   /**
    * various RAM variables that we allow public access to
    * for instrumentation and data logging purposes.
@@ -112,6 +118,22 @@ public:
   SetpointSource_E
   getSetpointSource() const;
 
+  void
+  setRangeCalPPS_A(
+    RangeCalibration rc);
+
+  void
+  setRangeCalPPS_B(
+    RangeCalibration rc);
+
+  void
+  setRangeCalTPS_A(
+    RangeCalibration rc);
+
+  void
+  setRangeCalTPS_B(
+    RangeCalibration rc);
+
   /**
    * Setter for the override setpoint value. Only does something if
    * the setpoint source is set to 'eSS_User' via setSetpointSource().
@@ -172,12 +194,6 @@ private:
     uint8_t driverPinDis_;
     uint8_t driverPinFS_;
     uint8_t driverPinFB_;
-
-    struct RangeCalibration
-    {
-      uint16_t min;
-      uint16_t max;
-    };
 
     // calibration for the pedal position sensor readings.
     // 'min' value is the ADC reading at 0% throttle
