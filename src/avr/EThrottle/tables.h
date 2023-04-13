@@ -63,6 +63,8 @@ struct ADC_MappingControl_T
   };
 };
 
+#define SENSOR_COMPARE_CURVE_N_BINS 4
+
 struct Page1_T
 {
   // Throttle PID controller coefficients
@@ -71,6 +73,7 @@ struct Page1_T
   uint16_t throttleKi;
   uint16_t throttleKd;
   uint16_t reserved0;
+
   // min/max ADC range calibration for Pedal Position Sensors (PPS)
   //  min is ADC at 0% throttle
   //  max is ADC at 100% throttle
@@ -81,7 +84,19 @@ struct Page1_T
   //  max is ADC at 100% throttle
   Throttle::RangeCalibration tpsCalA;
   Throttle::RangeCalibration tpsCalB;
-  uint8_t reserved[104];
+
+  union SensorSetupUnion
+  {
+    Throttle::SensorSetup bits;
+    uint8_t word;
+  } sensorSetup;
+  uint8_t  reserved1;
+  uint16_t reserved2;
+  uint16_t ppsCompCurve_xBins[SENSOR_COMPARE_CURVE_N_BINS];
+  uint16_t ppsCompCurve_yBins[SENSOR_COMPARE_CURVE_N_BINS];
+  uint16_t tpsCompCurve_xBins[SENSOR_COMPARE_CURVE_N_BINS];
+  uint16_t tpsCompCurve_yBins[SENSOR_COMPARE_CURVE_N_BINS];
+  uint8_t reserved[68];
 };
 static_assert(sizeof(Page1_T) == PAGE1_SIZE);
 static_assert(sizeof(Page1_T) <= MEGA_CAN_EXT_MAX_FLASH_TABLE_SIZE);
@@ -114,6 +129,10 @@ storeThrottlePID_ToFlash(
 
 void
 loadSensorCalibrationsFromFlash(
+  Throttle &throttle);
+
+void
+loadSensorSetupFromFlash(
   Throttle &throttle);
 
 #endif

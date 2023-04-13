@@ -28,6 +28,7 @@ void setup() {
   throttle.init(PID_SAMPLE_RATE_MS, throttleVars);
   loadThrottlePID_FromFlash(throttle);
   loadSensorCalibrationsFromFlash(throttle);
+  loadSensorSetupFromFlash(throttle);
 
   canSetup();
 }

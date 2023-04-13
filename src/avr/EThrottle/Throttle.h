@@ -41,6 +41,15 @@ public:
     uint16_t max;
   };
 
+  struct SensorSetup
+  {
+    uint8_t comparePPS    : 1;
+    uint8_t preferPPS_A   : 1;
+    uint8_t compareTPS    : 1;
+    uint8_t preferTPS_A   : 1;
+    uint8_t rsvd          : 4;
+  };
+
   /**
    * various RAM variables that we allow public access to
    * for instrumentation and data logging purposes.
@@ -133,6 +142,10 @@ public:
   void
   setRangeCalTPS_B(
     RangeCalibration rc);
+
+  void
+  setSensorSetup(
+    SensorSetup setup);
 
   /**
    * Setter for the override setpoint value. Only does something if
@@ -268,6 +281,8 @@ private:
     // user specified setpoint via setSetpointOverride()
     // range: [0 to 10000] (ie. 0% to 100%)
     uint16_t userSetpoint_;
+
+    SensorSetup sensorSetup_;
 
 };
 

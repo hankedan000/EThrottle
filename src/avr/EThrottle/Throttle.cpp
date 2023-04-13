@@ -36,9 +36,16 @@ Throttle::Throttle(
  , pid_(&pidIn_,&pidOut_,&pidSetpoint_,0,0,0, DIRECT)
  , setpointSource_(SetpointSource_E::eSS_PPS)
  , userSetpoint_(0)
+ , sensorSetup_()
 {
   // zero out coefficients to be safe
   updatePID_Coeffs(0.0,0.0,0.0);
+
+  // defaults. these can get changed via setSensorSetup()
+  sensorSetup_.comparePPS = 0;
+  sensorSetup_.preferPPS_A = 1;
+  sensorSetup_.compareTPS = 0;
+  sensorSetup_.preferTPS_A = 0;
 }
 
 void
@@ -125,6 +132,13 @@ Throttle::setRangeCalTPS_B(
   Throttle::RangeCalibration rc)
 {
   tpsCalB_ = rc;
+}
+
+void
+Throttle::setSensorSetup(
+  Throttle::SensorSetup setup)
+{
+  sensorSetup_ = setup;
 }
 
 void
@@ -245,12 +259,11 @@ Throttle::doPedal()
   DEBUG("ppsA: %d, ppsB: %d", ppsA_, ppsB_);
   DEBUG("ppsA_Norm: %d, ppsB_Norm: %d", ppsA_Norm, ppsB_Norm);
 
-  // once we've safety checked the ADCs we can just use one sensor value
-  // to compute the final PPS percentage. i'm favoring ppsb here because
-  // it does a better job at covering the full range of motion. ppsa
-  // saturates right before 100% throttle.
-  // TODO: add configurable 'favored pps' option
-  pps_ = ppsA_Norm;
+  // once we've safety checked the ADCs we can use one sensor value
+  // to compute the final PPS percentage. the tuner should set the
+  // prefered sensor (A or B) based on which one gives readings over
+  // the full range of the accelerator pedal.
+  pps_ = (sensorSetup_.preferPPS_A ? ppsA_Norm : ppsB_Norm);
   if (pps_ < 0) {
     pps_ = 0;
   } else if (pps_ > 10000) {
@@ -271,8 +284,13 @@ Throttle::doThrottle()
   int16_t tpsB_Norm = map(tpsB_, tpsCalB_.min, tpsCalB_.max, 0, 10000);
   DEBUG("tpsA: %d, tpsB: %d", tpsA_Norm, tpsB_Norm);
 
-  // TODO merge tpsA and tpsB & safety check
-  tps_ = tpsB_Norm;
+  // TODO safety check
+
+  // once we've safety checked the ADCs we can use one sensor value
+  // to compute the final TPS percentage. the tuner should set the
+  // prefered sensor (A or B) based on which one gives readings over
+  // the full range of the throttle.
+  tps_ = (sensorSetup_.preferTPS_A ? tpsA_Norm : tpsB_Norm);
 
   switch (setpointSource_)
   {
