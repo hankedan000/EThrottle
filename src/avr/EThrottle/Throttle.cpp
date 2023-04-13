@@ -37,16 +37,6 @@ Throttle::Throttle(
  , setpointSource_(SetpointSource_E::eSS_PPS)
  , userSetpoint_(0)
 {
-  // FIXME restore clibration from EEPROM
-  ppsCalA_.min = 183;
-  ppsCalA_.max = 1023;
-  ppsCalB_.min = 29;
-  ppsCalB_.max = 875;
-  tpsCalA_.min = 0;
-  tpsCalA_.max = 1023;
-  tpsCalB_.min = 190;
-  tpsCalB_.max = 856;
-
   // zero out coefficients to be safe
   updatePID_Coeffs(0.0,0.0,0.0);
 }
@@ -67,18 +57,6 @@ Throttle::init(
   enableMotor();
   analogWrite(driverPinP_,0);
   analogWrite(driverPinN_,0);
-
-  // help reduce buzzing sounds from throttle body
-  // set timer0 prescaler of 8 (gives PWM freq of 7812.5Hz)
-  // FIXME timer0 is used for digitaly pins 5 and 6 which
-  // doesn't scale with programmable I/O pins like class claims
-  #define TMR0_CLKPR_OFF  0x0
-  #define TMR0_CLKPR_1    0x1
-  #define TMR0_CLKPR_8    0x2
-  #define TMR0_CLKPR_64   0x3
-  #define TMR0_CLKPR_256  0x4
-  #define TMR0_CLKPR_1024 0x5
-  TCCR0B = TMR0_CLKPR_8;
 
   // setup the PID controller class
   pid_.SetMode(AUTOMATIC);
@@ -119,6 +97,34 @@ Throttle::SetpointSource_E
 Throttle::getSetpointSource() const
 {
   return setpointSource_;
+}
+
+void
+Throttle::setRangeCalPPS_A(
+  Throttle::RangeCalibration rc)
+{
+  ppsCalA_ = rc;
+}
+
+void
+Throttle::setRangeCalPPS_B(
+  Throttle::RangeCalibration rc)
+{
+  ppsCalB_ = rc;
+}
+
+void
+Throttle::setRangeCalTPS_A(
+  Throttle::RangeCalibration rc)
+{
+  tpsCalA_ = rc;
+}
+
+void
+Throttle::setRangeCalTPS_B(
+  Throttle::RangeCalibration rc)
+{
+  tpsCalB_ = rc;
 }
 
 void

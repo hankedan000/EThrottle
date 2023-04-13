@@ -21,8 +21,8 @@ onTableBurned(
   if (table == 1)
   {
     loadThrottlePID_FromFlash(throttle);
+    loadSensorCalibrationsFromFlash(throttle);
   }
-  INFO("table %d burned!", table);
 }
 
 void
