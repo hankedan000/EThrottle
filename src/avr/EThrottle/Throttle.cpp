@@ -291,6 +291,7 @@ Throttle::doPedal()
       EndianUtils::setBE(outVars_->ppsSafetyDelta, ppsDelta);
     }
 
+    // TODO make limit a flash param
     const uint16_t PPS_SAFETY_LIMIT = 50;
     if (abs(ppsDelta) >= PPS_SAFETY_LIMIT)
     {
@@ -330,12 +331,49 @@ Throttle::doThrottle()
   tpsA_ = analogRead(tpsPinA_);
   tpsB_ = analogRead(tpsPinB_);
 
+  // safety check the raw ADC values
+  if (sensorSetup_.compareTPS)
+  {
+    const int16_t preferADC = (sensorSetup_.preferTPS_A ? tpsA_ : tpsB_);
+    const int16_t otherADC = (sensorSetup_.preferTPS_A ? tpsB_ : tpsA_);
+
+    // lookup what we expect the other sensor's ADC value to be based
+    // on the prefered sensor's reading.
+    const int16_t otherExpected = FlashUtils::lerpS16(
+      tpsCompDesc_.xBinsFlashOffset,
+      tpsCompDesc_.yBinsFlashOffset,
+      tpsCompDesc_.nBins,
+      preferADC);
+    const int16_t tpsDelta = otherADC - otherExpected;
+    DEBUG(
+      "preferADC = %d, otherADC = %d, otherExpected = %d, tpsDelta = %d",
+      preferADC,
+      otherADC,
+      otherExpected,
+      tpsDelta);
+
+    if (outVars_)
+    {
+      EndianUtils::setBE(outVars_->tpsSafetyDelta, tpsDelta);
+    }
+
+    // TODO make limit a flash param
+    const uint16_t TPS_SAFETY_LIMIT = 50;
+    if (abs(tpsDelta) >= TPS_SAFETY_LIMIT)
+    {
+      // TODO increment error counter
+      disableMotor();
+      if (outVars_)
+      {
+        outVars_->status.tpsComparisonFault = 1;
+      }
+    }
+  }
+
   // normalize TPS readings based on calibrated min/max values
   int16_t tpsA_Norm = map(tpsA_, tpsCalA_.min, tpsCalA_.max, 0, 10000);
   int16_t tpsB_Norm = map(tpsB_, tpsCalB_.min, tpsCalB_.max, 0, 10000);
   DEBUG("tpsA: %d, tpsB: %d", tpsA_Norm, tpsB_Norm);
-
-  // TODO safety check
 
   // once we've safety checked the ADCs we can use one sensor value
   // to compute the final TPS percentage. the tuner should set the
