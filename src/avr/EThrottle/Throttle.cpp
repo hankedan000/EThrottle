@@ -328,6 +328,18 @@ Throttle::doThrottle()
   tpsA_ = analogRead(tpsPinA_);
   tpsB_ = analogRead(tpsPinB_);
 
+  // normalize TPS readings based on calibrated min/max values
+  int16_t tpsA_Norm = map(tpsA_, tpsCalA_.min, tpsCalA_.max, 0, 10000);
+  int16_t tpsB_Norm = map(tpsB_, tpsCalB_.min, tpsCalB_.max, 0, 10000);
+  DEBUG("tpsA: %d, tpsB: %d", tpsA_Norm, tpsB_Norm);
+
+  // Compute TPS percentage based on prefered sensor's normalized
+  // percentage. The tuner should set the prefered sensor (A or B)
+  // based on which one gives readings over the full range of the
+  // throttle blade.
+  // Note: tps_ can get set to 0% if TPS safety checks fail.
+  tps_ = (sensorSetup_.preferTPS_A ? tpsA_Norm : tpsB_Norm);
+
   // safety check the raw ADC values
   if (sensorSetup_.compareTPS)
   {
@@ -360,21 +372,11 @@ Throttle::doThrottle()
       // throttle blade. This assumes the throttle has a return spring that will
       // close the throttle blade when the motor is unpowered.
       disableMotor();
+      tps_ = 0;
       // TODO add error counter?
       status_.tpsComparisonFault = 1;
     }
   }
-
-  // normalize TPS readings based on calibrated min/max values
-  int16_t tpsA_Norm = map(tpsA_, tpsCalA_.min, tpsCalA_.max, 0, 10000);
-  int16_t tpsB_Norm = map(tpsB_, tpsCalB_.min, tpsCalB_.max, 0, 10000);
-  DEBUG("tpsA: %d, tpsB: %d", tpsA_Norm, tpsB_Norm);
-
-  // once we've safety checked the ADCs we can use one sensor value
-  // to compute the final TPS percentage. the tuner should set the
-  // prefered sensor (A or B) based on which one gives readings over
-  // the full range of the throttle.
-  tps_ = (sensorSetup_.preferTPS_A ? tpsA_Norm : tpsB_Norm);
 
   switch (setpointSource_)
   {
