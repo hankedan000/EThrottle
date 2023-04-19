@@ -42,3 +42,28 @@ loadSensorCalibrationsFromFlash(
   rc.max = FlashUtils::flashRead_BE<uint16_t>(PAGE1_FIELD_OFFSET(tpsCalB.max));
   throttle.setRangeCalTPS_B(rc);
 }
+
+void
+loadSensorSetupFromFlash(
+  Throttle &throttle)
+{
+  Page1_T::SensorSetupUnion setupU;
+  setupU.word = EEPROM.read(PAGE1_FIELD_OFFSET(sensorSetup.word));
+
+  Throttle::FlashTableDescriptor ppsFTD;
+  ppsFTD.xBinsFlashOffset = PAGE1_FIELD_OFFSET(ppsCompCurve_xBins);
+  ppsFTD.yBinsFlashOffset = PAGE1_FIELD_OFFSET(ppsCompCurve_yBins);
+  ppsFTD.nBins = SENSOR_COMPARE_CURVE_N_BINS;
+
+  Throttle::FlashTableDescriptor tpsFTD;
+  tpsFTD.xBinsFlashOffset = PAGE1_FIELD_OFFSET(tpsCompCurve_xBins);
+  tpsFTD.yBinsFlashOffset = PAGE1_FIELD_OFFSET(tpsCompCurve_yBins);
+  tpsFTD.nBins = SENSOR_COMPARE_CURVE_N_BINS;
+
+  throttle.setSensorSetup(
+    setupU.bits,
+    ppsFTD,
+    tpsFTD,
+    FlashUtils::flashRead_BE<uint16_t>(PAGE1_FIELD_OFFSET(ppsCompareThresh)),
+    FlashUtils::flashRead_BE<uint16_t>(PAGE1_FIELD_OFFSET(tpsCompareThresh)));
+}

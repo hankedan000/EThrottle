@@ -41,6 +41,32 @@ public:
     uint16_t max;
   };
 
+  struct SensorSetup
+  {
+    uint8_t comparePPS    : 1;
+    uint8_t preferPPS_A   : 1;
+    uint8_t compareTPS    : 1;
+    uint8_t preferTPS_A   : 1;
+    uint8_t rsvd          : 4;
+  };
+
+  struct FlashTableDescriptor
+  {
+    uint16_t xBinsFlashOffset;
+    uint16_t yBinsFlashOffset;
+    uint8_t nBins;
+  };
+
+  struct Status
+  {
+    uint8_t pidAutoTuneBusy    : 1;
+    uint8_t ppsComparisonFault : 1;
+    uint8_t tpsComparisonFault : 1;
+    uint8_t reserved0          : 1;
+    uint8_t motorEnabled       : 1;
+    uint8_t reserved           : 3;
+  };
+
   /**
    * various RAM variables that we allow public access to
    * for instrumentation and data logging purposes.
@@ -77,11 +103,17 @@ public:
     // range: [0 to 65535] in milliamps
     uint16_t motorCurrent_mA;
 
-    struct Status
-    {
-      uint8_t pidAutoTuneBusy : 1;
-      uint8_t reserved        : 7;
-    } status;
+    Status status;
+
+    // when using redundant PPS sensors, this value represents the delta
+    // of the secondary sensor's expected value compared to its measure
+    // value.
+    int16_t ppsSafetyDelta;
+
+    // when using redundant TPS sensors, this value represents the delta
+    // of the secondary sensor's expected value compared to its measure
+    // value.
+    int16_t tpsSafetyDelta;
   };
 
 public:
@@ -106,10 +138,10 @@ public:
     OutVars *outVars);
 
   void
-  disableMotor() const;
+  disableMotor();
 
   void
-  enableMotor() const;
+  enableMotor();
 
   void
   setSetpointSource(
@@ -133,6 +165,14 @@ public:
   void
   setRangeCalTPS_B(
     RangeCalibration rc);
+
+  void
+  setSensorSetup(
+    SensorSetup setup,
+    const FlashTableDescriptor &ppsCompDesc,
+    const FlashTableDescriptor &tpsCompDesc,
+    uint16_t ppsCompareThresh,
+    uint16_t tpsCompareThresh);
 
   /**
    * Setter for the override setpoint value. Only does something if
@@ -243,6 +283,9 @@ private:
     // RAM variables
     OutVars *outVars_;
 
+    // status maintained in RAM
+    Status status_;
+
     // rate at which the PID algorith runs in milliseconds
     uint8_t pidSampleRate_ms_;
 
@@ -268,6 +311,14 @@ private:
     // user specified setpoint via setSetpointOverride()
     // range: [0 to 10000] (ie. 0% to 100%)
     uint16_t userSetpoint_;
+
+    SensorSetup sensorSetup_;
+    FlashTableDescriptor ppsCompDesc_;
+    FlashTableDescriptor tpsCompDesc_;
+    // threshold used to compare the absolute value of the ADC
+    // delta in the sensor comparison logic. usually set to 50 or so.
+    uint16_t ppsCompareThresh_;
+    uint16_t tpsCompareThresh_;
 
 };
 

@@ -22,6 +22,7 @@ onTableBurned(
   {
     loadThrottlePID_FromFlash(throttle);
     loadSensorCalibrationsFromFlash(throttle);
+    loadSensorSetupFromFlash(throttle);
   }
 }
 
