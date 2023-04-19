@@ -50,6 +50,13 @@ public:
     uint8_t rsvd          : 4;
   };
 
+  struct FlashTableDescriptor
+  {
+    uint16_t xBinsFlashOffset;
+    uint16_t yBinsFlashOffset;
+    uint8_t nBins;
+  };
+
   /**
    * various RAM variables that we allow public access to
    * for instrumentation and data logging purposes.
@@ -88,9 +95,23 @@ public:
 
     struct Status
     {
-      uint8_t pidAutoTuneBusy : 1;
-      uint8_t reserved        : 7;
+      uint8_t pidAutoTuneBusy    : 1;
+      uint8_t ppsComparisonFault : 1;
+      uint8_t tpsComparisonFault : 1;
+      uint8_t reserved0          : 1;
+      uint8_t motorEnabled       : 1;
+      uint8_t reserved           : 3;
     } status;
+
+    // when using redundant PPS sensors, this value represents the delta
+    // of the secondary sensor's expected value compared to its measure
+    // value.
+    int16_t ppsSafetyDelta;
+
+    // when using redundant TPS sensors, this value represents the delta
+    // of the secondary sensor's expected value compared to its measure
+    // value.
+    int16_t tpsSafetyDelta;
   };
 
 public:
@@ -145,7 +166,9 @@ public:
 
   void
   setSensorSetup(
-    SensorSetup setup);
+    SensorSetup setup,
+    const FlashTableDescriptor &ppsCompDesc,
+    const FlashTableDescriptor &tpsCompDesc);
 
   /**
    * Setter for the override setpoint value. Only does something if
@@ -283,6 +306,8 @@ private:
     uint16_t userSetpoint_;
 
     SensorSetup sensorSetup_;
+    FlashTableDescriptor ppsCompDesc_;
+    FlashTableDescriptor tpsCompDesc_;
 
 };
 

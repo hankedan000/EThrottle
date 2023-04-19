@@ -1,3 +1,4 @@
+#include "FlashUtils.h"
 #include "EndianUtils.h"
 #include "Throttle.h"
 
@@ -55,6 +56,11 @@ Throttle::init(
 {
   pidSampleRate_ms_ = pidSampleRate_ms;
   outVars_ = outVars;
+  if (outVars_)
+  {
+    outVars_->status.ppsComparisonFault = 0;
+    outVars_->status.tpsComparisonFault = 0;
+  }
 
   pinMode(driverPinP_, OUTPUT);
   pinMode(driverPinN_, OUTPUT);
@@ -85,12 +91,20 @@ void
 Throttle::disableMotor() const
 {
   digitalWrite(driverPinDis_, 1);
+  if (outVars_)
+  {
+    outVars_->status.motorEnabled = 0;
+  }
 }
 
 void
 Throttle::enableMotor() const
 {
   digitalWrite(driverPinDis_, 0);
+  if (outVars_)
+  {
+    outVars_->status.motorEnabled = 1;
+  }
 }
 
 void
@@ -136,9 +150,13 @@ Throttle::setRangeCalTPS_B(
 
 void
 Throttle::setSensorSetup(
-  Throttle::SensorSetup setup)
+  Throttle::SensorSetup setup,
+  const FlashTableDescriptor &ppsCompDesc,
+  const FlashTableDescriptor &tpsCompDesc)
 {
   sensorSetup_ = setup;
+  ppsCompDesc_ = ppsCompDesc;
+  tpsCompDesc_ = tpsCompDesc;
 }
 
 void
@@ -226,9 +244,6 @@ Throttle::stopPID_AutoTune()
 void
 Throttle::doCurrentMonitor()
 {
-  // FIXME this gets called within timer0 output compare interrupt
-  // context. if i perform this analogRead() it seems like we never
-  // unblock from the call.
   driverFB_ = analogRead(driverPinFB_);
 
   // feedback pin drives 1/375th the current to ground through 100ohm resistor.
@@ -250,7 +265,43 @@ Throttle::doPedal()
   ppsA_ = analogRead(ppsPinA_);
   ppsB_ = analogRead(ppsPinB_);
 
-  // TODO add logic to safety check the raw ADC values
+  // safety check the raw ADC values
+  if (sensorSetup_.comparePPS)
+  {
+    const int16_t preferADC = (sensorSetup_.preferPPS_A ? ppsA_ : ppsB_);
+    const int16_t otherADC = (sensorSetup_.preferPPS_A ? ppsB_ : ppsA_);
+
+    // lookup what we expect the other sensor's ADC value to be based
+    // on the prefered sensor's reading.
+    const int16_t otherExpected = FlashUtils::lerpS16(
+      ppsCompDesc_.xBinsFlashOffset,
+      ppsCompDesc_.yBinsFlashOffset,
+      ppsCompDesc_.nBins,
+      preferADC);
+    const int16_t ppsDelta = otherADC - otherExpected;
+    DEBUG(
+      "preferADC = %d, otherADC = %d, otherExpected = %d, ppsDelta = %d",
+      preferADC,
+      otherADC,
+      otherExpected,
+      ppsDelta);
+
+    if (outVars_)
+    {
+      EndianUtils::setBE(outVars_->ppsSafetyDelta, ppsDelta);
+    }
+
+    const uint16_t PPS_SAFETY_LIMIT = 50;
+    if (abs(ppsDelta) >= PPS_SAFETY_LIMIT)
+    {
+      // TODO increment error counter
+      disableMotor();
+      if (outVars_)
+      {
+        outVars_->status.ppsComparisonFault = 1;
+      }
+    }
+  }
 
   // normalize PPS readings based on calibrated min/max values
   int16_t ppsA_Norm = map(ppsA_, ppsCalA_.min, ppsCalA_.max, 0, 10000);
