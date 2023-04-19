@@ -96,7 +96,9 @@ struct Page1_T
   uint16_t ppsCompCurve_yBins[SENSOR_COMPARE_CURVE_N_BINS];
   uint16_t tpsCompCurve_xBins[SENSOR_COMPARE_CURVE_N_BINS];
   uint16_t tpsCompCurve_yBins[SENSOR_COMPARE_CURVE_N_BINS];
-  uint8_t reserved[68];
+  uint16_t ppsCompareThresh;
+  uint16_t tpsCompareThresh;
+  uint8_t reserved[64];
 };
 static_assert(sizeof(Page1_T) == PAGE1_SIZE);
 static_assert(sizeof(Page1_T) <= MEGA_CAN_EXT_MAX_FLASH_TABLE_SIZE);

@@ -57,6 +57,16 @@ public:
     uint8_t nBins;
   };
 
+  struct Status
+  {
+    uint8_t pidAutoTuneBusy    : 1;
+    uint8_t ppsComparisonFault : 1;
+    uint8_t tpsComparisonFault : 1;
+    uint8_t reserved0          : 1;
+    uint8_t motorEnabled       : 1;
+    uint8_t reserved           : 3;
+  };
+
   /**
    * various RAM variables that we allow public access to
    * for instrumentation and data logging purposes.
@@ -93,15 +103,7 @@ public:
     // range: [0 to 65535] in milliamps
     uint16_t motorCurrent_mA;
 
-    struct Status
-    {
-      uint8_t pidAutoTuneBusy    : 1;
-      uint8_t ppsComparisonFault : 1;
-      uint8_t tpsComparisonFault : 1;
-      uint8_t reserved0          : 1;
-      uint8_t motorEnabled       : 1;
-      uint8_t reserved           : 3;
-    } status;
+    Status status;
 
     // when using redundant PPS sensors, this value represents the delta
     // of the secondary sensor's expected value compared to its measure
@@ -136,10 +138,10 @@ public:
     OutVars *outVars);
 
   void
-  disableMotor() const;
+  disableMotor();
 
   void
-  enableMotor() const;
+  enableMotor();
 
   void
   setSetpointSource(
@@ -168,7 +170,9 @@ public:
   setSensorSetup(
     SensorSetup setup,
     const FlashTableDescriptor &ppsCompDesc,
-    const FlashTableDescriptor &tpsCompDesc);
+    const FlashTableDescriptor &tpsCompDesc,
+    uint16_t ppsCompareThresh,
+    uint16_t tpsCompareThresh);
 
   /**
    * Setter for the override setpoint value. Only does something if
@@ -279,6 +283,9 @@ private:
     // RAM variables
     OutVars *outVars_;
 
+    // status maintained in RAM
+    Status status_;
+
     // rate at which the PID algorith runs in milliseconds
     uint8_t pidSampleRate_ms_;
 
@@ -308,6 +315,10 @@ private:
     SensorSetup sensorSetup_;
     FlashTableDescriptor ppsCompDesc_;
     FlashTableDescriptor tpsCompDesc_;
+    // threshold used to compare the absolute value of the ADC
+    // delta in the sensor comparison logic. usually set to 50 or so.
+    uint16_t ppsCompareThresh_;
+    uint16_t tpsCompareThresh_;
 
 };
 

@@ -60,5 +60,10 @@ loadSensorSetupFromFlash(
   tpsFTD.yBinsFlashOffset = PAGE1_FIELD_OFFSET(tpsCompCurve_yBins);
   tpsFTD.nBins = SENSOR_COMPARE_CURVE_N_BINS;
 
-  throttle.setSensorSetup(setupU.bits, ppsFTD, tpsFTD);
+  throttle.setSensorSetup(
+    setupU.bits,
+    ppsFTD,
+    tpsFTD,
+    FlashUtils::flashRead_BE<uint16_t>(PAGE1_FIELD_OFFSET(ppsCompareThresh)),
+    FlashUtils::flashRead_BE<uint16_t>(PAGE1_FIELD_OFFSET(tpsCompareThresh)));
 }

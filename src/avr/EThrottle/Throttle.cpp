@@ -38,7 +38,14 @@ Throttle::Throttle(
  , setpointSource_(SetpointSource_E::eSS_PPS)
  , userSetpoint_(0)
  , sensorSetup_()
+ , ppsCompareThresh_(50)
+ , tpsCompareThresh_(50)
 {
+  status_.pidAutoTuneBusy = 0;
+  status_.motorEnabled = 0;
+  status_.ppsComparisonFault = 0;
+  status_.tpsComparisonFault = 0;
+
   // zero out coefficients to be safe
   updatePID_Coeffs(0.0,0.0,0.0);
 
@@ -56,11 +63,6 @@ Throttle::init(
 {
   pidSampleRate_ms_ = pidSampleRate_ms;
   outVars_ = outVars;
-  if (outVars_)
-  {
-    outVars_->status.ppsComparisonFault = 0;
-    outVars_->status.tpsComparisonFault = 0;
-  }
 
   pinMode(driverPinP_, OUTPUT);
   pinMode(driverPinN_, OUTPUT);
@@ -88,23 +90,17 @@ Throttle::init(
 }
 
 void
-Throttle::disableMotor() const
+Throttle::disableMotor()
 {
   digitalWrite(driverPinDis_, 1);
-  if (outVars_)
-  {
-    outVars_->status.motorEnabled = 0;
-  }
+  status_.motorEnabled = 0;
 }
 
 void
-Throttle::enableMotor() const
+Throttle::enableMotor()
 {
   digitalWrite(driverPinDis_, 0);
-  if (outVars_)
-  {
-    outVars_->status.motorEnabled = 1;
-  }
+  status_.motorEnabled = 1;
 }
 
 void
@@ -152,11 +148,15 @@ void
 Throttle::setSensorSetup(
   Throttle::SensorSetup setup,
   const FlashTableDescriptor &ppsCompDesc,
-  const FlashTableDescriptor &tpsCompDesc)
+  const FlashTableDescriptor &tpsCompDesc,
+  uint16_t ppsCompareThresh,
+  uint16_t tpsCompareThresh)
 {
   sensorSetup_ = setup;
   ppsCompDesc_ = ppsCompDesc;
   tpsCompDesc_ = tpsCompDesc;
+  ppsCompareThresh_ = ppsCompareThresh;
+  tpsCompareThresh_ = tpsCompareThresh;
 }
 
 void
@@ -191,6 +191,7 @@ Throttle::run()
     EndianUtils::setBE(outVars_->tpsTarget, tpsTarget_);
     EndianUtils::setBE(outVars_->motorOut, motorOut_);
     EndianUtils::setBE(outVars_->motorCurrent_mA, motorCurrent_mA_);
+    outVars_->status = status_;
   }
 }
 
@@ -224,13 +225,13 @@ Throttle::getKd()
 void
 Throttle::startPID_AutoTune()
 {
-  if (outVars_->status.pidAutoTuneBusy) {
+  if (status_.pidAutoTuneBusy) {
     return;
   }
 
   const uint16_t AUTOTUNE_TARGET = 5000;// 50%
 
-  outVars_->status.pidAutoTuneBusy = 1;
+  status_.pidAutoTuneBusy = 1;
   tuner_.setTargetInputValue(AUTOTUNE_TARGET);
   tuner_.startTuningLoop(micros());
 }
@@ -238,7 +239,7 @@ Throttle::startPID_AutoTune()
 void
 Throttle::stopPID_AutoTune()
 {
-  outVars_->status.pidAutoTuneBusy = 0;
+  status_.pidAutoTuneBusy = 0;
 }
 
 void
@@ -264,6 +265,25 @@ Throttle::doPedal()
 {
   ppsA_ = analogRead(ppsPinA_);
   ppsB_ = analogRead(ppsPinB_);
+
+  // normalize PPS readings based on calibrated min/max values
+  int16_t ppsA_Norm = map(ppsA_, ppsCalA_.min, ppsCalA_.max, 0, 10000);
+  int16_t ppsB_Norm = map(ppsB_, ppsCalB_.min, ppsCalB_.max, 0, 10000);
+
+  DEBUG("ppsA: %d, ppsB: %d", ppsA_, ppsB_);
+  DEBUG("ppsA_Norm: %d, ppsB_Norm: %d", ppsA_Norm, ppsB_Norm);
+
+  // Compute PPS percentage based on prefered sensor's normalized
+  // percentage. The tuner should set the prefered sensor (A or B)
+  // based on which one gives readings over the full range of the
+  // accelerator pedal.
+  // Note: pps_ can get set to 0% if PPS safety checks fail.
+  pps_ = (sensorSetup_.preferPPS_A ? ppsA_Norm : ppsB_Norm);
+  if (pps_ < 0) {
+    pps_ = 0;
+  } else if (pps_ > 10000) {
+    pps_ = 10000;
+  }
 
   // safety check the raw ADC values
   if (sensorSetup_.comparePPS)
@@ -291,38 +311,15 @@ Throttle::doPedal()
       EndianUtils::setBE(outVars_->ppsSafetyDelta, ppsDelta);
     }
 
-    // TODO make limit a flash param
-    const uint16_t PPS_SAFETY_LIMIT = 50;
-    if (abs(ppsDelta) >= PPS_SAFETY_LIMIT)
+    if (abs(ppsDelta) >= ppsCompareThresh_)
     {
-      // TODO increment error counter
-      disableMotor();
-      if (outVars_)
-      {
-        outVars_->status.ppsComparisonFault = 1;
-      }
+      pps_ = 0;// default to 0% pedal position to be safe
+      // TODO add error counter?
+      status_.ppsComparisonFault = 1;
     }
   }
 
-  // normalize PPS readings based on calibrated min/max values
-  int16_t ppsA_Norm = map(ppsA_, ppsCalA_.min, ppsCalA_.max, 0, 10000);
-  int16_t ppsB_Norm = map(ppsB_, ppsCalB_.min, ppsCalB_.max, 0, 10000);
-
-  DEBUG("ppsA: %d, ppsB: %d", ppsA_, ppsB_);
-  DEBUG("ppsA_Norm: %d, ppsB_Norm: %d", ppsA_Norm, ppsB_Norm);
-
-  // once we've safety checked the ADCs we can use one sensor value
-  // to compute the final PPS percentage. the tuner should set the
-  // prefered sensor (A or B) based on which one gives readings over
-  // the full range of the accelerator pedal.
-  pps_ = (sensorSetup_.preferPPS_A ? ppsA_Norm : ppsB_Norm);
-  if (pps_ < 0) {
-    pps_ = 0;
-  } else if (pps_ > 10000) {
-    pps_ = 10000;
-  }
-
-  DEBUG("pps: %d", pps);
+  DEBUG("pps_: %d", pps_);
 }
 
 void
@@ -357,16 +354,14 @@ Throttle::doThrottle()
       EndianUtils::setBE(outVars_->tpsSafetyDelta, tpsDelta);
     }
 
-    // TODO make limit a flash param
-    const uint16_t TPS_SAFETY_LIMIT = 50;
-    if (abs(tpsDelta) >= TPS_SAFETY_LIMIT)
+    if (abs(tpsDelta) >= tpsCompareThresh_)
     {
-      // TODO increment error counter
+      // Best to disable motor since we have unreliable position info for the
+      // throttle blade. This assumes the throttle has a return spring that will
+      // close the throttle blade when the motor is unpowered.
       disableMotor();
-      if (outVars_)
-      {
-        outVars_->status.tpsComparisonFault = 1;
-      }
+      // TODO add error counter?
+      status_.tpsComparisonFault = 1;
     }
   }
 
@@ -399,7 +394,7 @@ Throttle::doThrottle()
   DEBUG("pidIn_: %f", pidIn_);
 
   // handle PID auto-tune logic
-  if (outVars_->status.pidAutoTuneBusy) {
+  if (status_.pidAutoTuneBusy) {
     pidOut_ = tuner_.tunePID(pidIn_, micros());
 
     if (tuner_.isFinished()) {
