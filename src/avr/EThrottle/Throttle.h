@@ -62,7 +62,7 @@ public:
     uint8_t pidAutoTuneBusy    : 1;
     uint8_t ppsComparisonFault : 1;
     uint8_t tpsComparisonFault : 1;
-    uint8_t reserved0          : 1;
+    uint8_t throttleEnabled    : 1;
     uint8_t motorEnabled       : 1;
     uint8_t reserved           : 3;
   };
@@ -137,11 +137,18 @@ public:
     uint8_t pidSampleRate_ms,
     OutVars *outVars);
 
+  /**
+   * disables the motor driver and the PID control loop.
+   * sensor reading still occurs.
+   */
   void
-  disableMotor();
+  disableThrottle();
 
+  /**
+   * enables the motor driver and the PID control loop
+   */
   void
-  enableMotor();
+  enableThrottle();
 
   void
   setSetpointSource(
@@ -218,6 +225,12 @@ public:
   doCurrentMonitor();  
 
 private:
+  void
+  disableMotor();
+
+  void
+  enableMotor();
+
   void
   doPedal();
 

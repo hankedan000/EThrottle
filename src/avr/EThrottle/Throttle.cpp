@@ -42,9 +42,10 @@ Throttle::Throttle(
  , tpsCompareThresh_(50)
 {
   status_.pidAutoTuneBusy = 0;
-  status_.motorEnabled = 0;
   status_.ppsComparisonFault = 0;
   status_.tpsComparisonFault = 0;
+  status_.throttleEnabled = 0;
+  status_.motorEnabled = 0;
 
   // zero out coefficients to be safe
   updatePID_Coeffs(0.0,0.0,0.0);
@@ -69,7 +70,7 @@ Throttle::init(
   pinMode(driverPinDis_, OUTPUT);
   pinMode(driverPinFS_, INPUT);
 
-  enableMotor();
+  enableThrottle();
   analogWrite(driverPinP_,0);
   analogWrite(driverPinN_,0);
 
@@ -90,17 +91,17 @@ Throttle::init(
 }
 
 void
-Throttle::disableMotor()
+Throttle::disableThrottle()
 {
-  digitalWrite(driverPinDis_, 1);
-  status_.motorEnabled = 0;
+  disableMotor();
+  status_.throttleEnabled = 0;
 }
 
 void
-Throttle::enableMotor()
+Throttle::enableThrottle()
 {
-  digitalWrite(driverPinDis_, 0);
-  status_.motorEnabled = 1;
+  enableMotor();
+  status_.throttleEnabled = 1;
 }
 
 void
@@ -261,6 +262,20 @@ Throttle::doCurrentMonitor()
 }
 
 void
+Throttle::disableMotor()
+{
+  digitalWrite(driverPinDis_, 1);
+  status_.motorEnabled = 0;
+}
+
+void
+Throttle::enableMotor()
+{
+  digitalWrite(driverPinDis_, 0);
+  status_.motorEnabled = 1;
+}
+
+void
 Throttle::doPedal()
 {
   ppsA_ = analogRead(ppsPinA_);
@@ -378,44 +393,53 @@ Throttle::doThrottle()
     }
   }
 
-  switch (setpointSource_)
+  // update PID controller
+  if (status_.throttleEnabled)
   {
-    case SetpointSource_E::eSS_PPS:
-      tpsTarget_ = pps_;
-      break;
-    case SetpointSource_E::eSS_User:
-      tpsTarget_ = userSetpoint_;
-      break;
-  }
-
-  // update PID control variables
-  pidSetpoint_ = tpsTarget_;  
-  pidIn_ = tps_;
-  pid_.Compute();
-
-  DEBUG("pidIn_: %f", pidIn_);
-
-  // handle PID auto-tune logic
-  if (status_.pidAutoTuneBusy) {
-    pidOut_ = tuner_.tunePID(pidIn_, micros());
-
-    if (tuner_.isFinished()) {
-      stopPID_AutoTune();
-
-      INFO("auto tune done!");
-      INFO(
-        "Kp: %d, Ki: %d, Kd: %d",
-        (uint16_t)(tuner_.getKp() * 100),
-        (uint16_t)(tuner_.getKi() * 100),
-        (uint16_t)(tuner_.getKd() * 100));
+    switch (setpointSource_)
+    {
+      case SetpointSource_E::eSS_PPS:
+        tpsTarget_ = pps_;
+        break;
+      case SetpointSource_E::eSS_User:
+        tpsTarget_ = userSetpoint_;
+        break;
     }
+
+    pidSetpoint_ = tpsTarget_;  
+    pidIn_ = tps_;
+    pid_.Compute();
+
+    DEBUG("pidIn_: %f", pidIn_);
+
+    // handle PID auto-tune logic
+    if (status_.pidAutoTuneBusy) {
+      pidOut_ = tuner_.tunePID(pidIn_, micros());
+
+      if (tuner_.isFinished()) {
+        stopPID_AutoTune();
+
+        INFO("auto tune done!");
+        INFO(
+          "Kp: %d, Ki: %d, Kd: %d",
+          (uint16_t)(tuner_.getKp() * 100),
+          (uint16_t)(tuner_.getKi() * 100),
+          (uint16_t)(tuner_.getKd() * 100));
+      }
+    }
+
+    // negative PWM means we need to close throttle; results in inverse
+    // motor polarity in H-Bridge driver use cases, or just undriven
+    // motor otherwise (relies on throttle body return spring to close)
+    motorOut_ = pidOut_;
+  }
+  else
+  {
+    tpsTarget_ = 0;
+    motorOut_ = 0;
   }
 
-  // negative PWM means we need to close throttle; results in inverse
-  // motor polarity in H-Bridge driver use cases, or just undriven
-  // motor otherwise (relies on throttle body return spring to close)
-  motorOut_ = pidOut_;
-
+  // drive motor outputs
 #ifdef SUPPORT_H_BRIDGE
   // handle h-bridge polarity inversion logic
   if (motorOut_ > 0) {
