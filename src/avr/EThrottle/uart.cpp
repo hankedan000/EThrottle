@@ -37,6 +37,24 @@ uartCmdBuffSize()
 }
 
 void
+pushedUartCmdBytes(
+  uint8_t nBytes)
+{
+  if ((cmdBuffIdx + nBytes) > UART_CMD_BUFF_SIZE)
+  {
+    ERROR("nBytes overflows UART buffer");
+  }
+  else
+  {
+    cmdBuffIdx += nBytes;
+    if (uartCmdBuff[cmdBuffIdx-1] == '\0')
+    {
+      processUartCmd();
+    }
+  }
+}
+
+void
 logPID_Params()
 {
   INFO(
@@ -58,6 +76,8 @@ processUartCmd()
   {
     return;
   }
+
+  DEBUG("uartCmdBuff = '%s'", uartCmdBuff);
 
   Throttle::OutVars *throttleVars = &outPC.throttleOutVars;
   char cmd = uartCmdBuff[0];

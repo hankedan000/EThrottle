@@ -12,6 +12,14 @@ doUart();
 uint8_t
 uartCmdBuffSize();
 
+// we can write into the uartCmdBuff via CAN debug commands.
+// this method is used indicate that 'nBytes' have been written to
+// the buffer. if the last byte written into the buffer is a '\0',
+// then the command will be processed immediately.
+void
+pushedUartCmdBytes(
+  uint8_t nBytes);
+
 // a      -> auto tune PID controller
 // p###   -> set 'Kp' to ### (where ### is a float from 0.0 to 1.0)
 // i###   -> set 'Ki' to ### (where ### is a float from 0.0 to 1.0)

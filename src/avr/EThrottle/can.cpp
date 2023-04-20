@@ -1,5 +1,7 @@
 #include "can.h"
 
+#include "uart.h"
+
 SET_MEGA_CAN_SIG("EThrottle");
 SET_MEGA_CAN_REV("OpenGPIO-0.1.0     ");
 
@@ -27,6 +29,19 @@ onTableBurned(
 }
 
 void
+onTableWritten(
+  uint8_t table,
+	uint16_t /*offset*/,
+	uint8_t len,
+	const uint8_t * /*data*/)
+{
+  if (table == 3)
+  {
+    pushedUartCmdBytes(len);
+  }
+}
+
+void
 canSetup()
 {
   cli();// disable interrupts
@@ -34,6 +49,7 @@ canSetup()
   // MCP2515 configuration
   canDev.init();
   canDev.setOnTableBurnedCallback(onTableBurned);
+  canDev.setOnTableWrittenCallback(onTableWritten);
   pinMode(CAN_INT, INPUT_PULLUP);// Configuring pin for CAN interrupt input
   attachInterrupt(digitalPinToInterrupt(CAN_INT), canISR, LOW);
 
