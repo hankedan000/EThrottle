@@ -42,8 +42,8 @@ struct OutPC_T
     uint8_t value;
   } status0;                        // offset 4
   uint8_t reserved0[5];             // offset 5
-  Throttle::OutVars throttleOutVars;// offset 10 (23bytes)
-  uint8_t reserved1[95];
+  Throttle::OutVars throttleOutVars;// offset 10 (27bytes)
+  uint8_t reserved1[91];
 };
 static_assert(sizeof(OutPC_T) == PAGE0_SIZE);
 
@@ -99,7 +99,8 @@ struct Page1_T
   uint16_t tpsCompCurve_yBins[SENSOR_COMPARE_CURVE_N_BINS];
   uint16_t ppsCompareThresh;
   uint16_t tpsCompareThresh;
-  uint8_t reserved[64];
+  uint16_t tpsStall;
+  uint8_t reserved[62];
 };
 static_assert(sizeof(Page1_T) == PAGE1_SIZE);
 static_assert(sizeof(Page1_T) <= MEGA_CAN_EXT_MAX_FLASH_TABLE_SIZE);
