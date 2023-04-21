@@ -65,5 +65,6 @@ loadSensorSetupFromFlash(
     ppsFTD,
     tpsFTD,
     FlashUtils::flashRead_BE<uint16_t>(PAGE1_FIELD_OFFSET(ppsCompareThresh)),
-    FlashUtils::flashRead_BE<uint16_t>(PAGE1_FIELD_OFFSET(tpsCompareThresh)));
+    FlashUtils::flashRead_BE<uint16_t>(PAGE1_FIELD_OFFSET(tpsCompareThresh)),
+    FlashUtils::flashRead_BE<uint16_t>(PAGE1_FIELD_OFFSET(tpsStall)));
 }

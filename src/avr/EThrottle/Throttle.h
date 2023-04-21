@@ -91,6 +91,7 @@ public:
     int16_t pps;
 
     // Throttle position the PID controller is targeting
+    // tpsTarget = idleAdder + ppsAdder
     // range: [-10000 to 10000] (ie. -100 to 100%)
     int16_t tpsTarget;
 
@@ -114,6 +115,17 @@ public:
     // of the secondary sensor's expected value compared to its measure
     // value.
     int16_t tpsSafetyDelta;
+
+    // portion of the tpsTarget that's coming from engine idle control.
+    // currently just a fixed value from flash, but will eventually have
+    // its own PID too.
+    // range: [-10000 to 10000] (ie. -100 to 100%)
+    int16_t idleAdder;
+
+    // portion of the tpsTarget that's coming from the accelerator pedal
+    // ppsAdder = ((10000 - idleAdder) * pps) / 10000
+    // range: [-10000 to 10000] (ie. -100 to 100%)
+    int16_t ppsAdder;
   };
 
 public:
@@ -179,7 +191,8 @@ public:
     const FlashTableDescriptor &ppsCompDesc,
     const FlashTableDescriptor &tpsCompDesc,
     uint16_t ppsCompareThresh,
-    uint16_t tpsCompareThresh);
+    uint16_t tpsCompareThresh,
+    uint16_t tpsStall);
 
   /**
    * Setter for the override setpoint value. Only does something if
@@ -277,8 +290,25 @@ private:
     int16_t pps_;
 
     // Throttle position the PID controller is targeting
+    // tpsTarget_ = max(tpsStall_, tpsStall_ + idleAdder_ + ppsAdder_)
     // range: [-10000 to 10000] (ie. -100 to 100%)
     int16_t tpsTarget_;
+
+    // the minimum tps value that the engine can continue to run.
+    // going below this tps value will cause the engine to stall.
+    // range: [-10000 to 10000] (ie. -100 to 100%)
+    int16_t tpsStall_;
+
+    // portion of the tpsTarget that's coming from engine idle control.
+    // currently just a fixed value from flash, but will eventually have
+    // its own PID too.
+    // range: [-10000 to 10000] (ie. -100 to 100%)
+    int16_t idleAdder_;
+
+    // portion of the tpsTarget that's coming from the accelerator pedal
+    // ppsAdder = ((10000 - tpsStall_ - idleAdder) * pps) / 10000
+    // range: [-10000 to 10000] (ie. -100 to 100%)
+    int16_t ppsAdder_;
 
     // PWM motor driver output
     // range: [-255 to 255] if in h-bridge mode (negative means reverse)

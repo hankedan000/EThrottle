@@ -32,6 +32,11 @@ Throttle::Throttle(
  , driverPinDis_(driverPinDis)
  , driverPinFS_(driverPinFS)
  , driverPinFB_(driverPinFB)
+ , tpsTarget_(0)
+ , tpsStall_(0)
+ , idleAdder_(0)
+ , ppsAdder_(0)
+ , motorOut_(0)
  , outVars_(nullptr)
  , pidSampleRate_ms_(100)
  , pid_(&pidIn_,&pidOut_,&pidSetpoint_,0,0,0, DIRECT)
@@ -151,13 +156,15 @@ Throttle::setSensorSetup(
   const FlashTableDescriptor &ppsCompDesc,
   const FlashTableDescriptor &tpsCompDesc,
   uint16_t ppsCompareThresh,
-  uint16_t tpsCompareThresh)
+  uint16_t tpsCompareThresh,
+  uint16_t tpsStall)
 {
   sensorSetup_ = setup;
   ppsCompDesc_ = ppsCompDesc;
   tpsCompDesc_ = tpsCompDesc;
   ppsCompareThresh_ = ppsCompareThresh;
   tpsCompareThresh_ = tpsCompareThresh;
+  tpsStall_ = tpsStall;
 }
 
 void
@@ -193,6 +200,8 @@ Throttle::run()
     EndianUtils::setBE(outVars_->motorOut, motorOut_);
     EndianUtils::setBE(outVars_->motorCurrent_mA, motorCurrent_mA_);
     outVars_->status = status_;
+    EndianUtils::setBE(outVars_->idleAdder, idleAdder_);
+    EndianUtils::setBE(outVars_->ppsAdder, ppsAdder_);
   }
 }
 
@@ -399,12 +408,18 @@ Throttle::doThrottle()
     switch (setpointSource_)
     {
       case SetpointSource_E::eSS_PPS:
-        tpsTarget_ = pps_;
+      {
+        ppsAdder_ = ((int32_t)(10000 - tpsStall_ - idleAdder_) * pps_) / 10000;
+        tpsTarget_ = tpsStall_ + idleAdder_ + ppsAdder_;
         break;
+      }
       case SetpointSource_E::eSS_User:
         tpsTarget_ = userSetpoint_;
         break;
     }
+
+    // don't let tps target go below the stall point
+    tpsTarget_ = max(tpsStall_, tpsTarget_);
 
     pidSetpoint_ = tpsTarget_;  
     pidIn_ = tps_;
