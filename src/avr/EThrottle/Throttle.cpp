@@ -51,6 +51,7 @@ Throttle::Throttle(
   status_.tpsComparisonFault = 0;
   status_.throttleEnabled = 0;
   status_.motorEnabled = 0;
+  status_.motorDriverFault = 0;
 
   // zero out coefficients to be safe
   updatePID_Coeffs(0.0,0.0,0.0);
@@ -73,7 +74,7 @@ Throttle::init(
   pinMode(driverPinP_, OUTPUT);
   pinMode(driverPinN_, OUTPUT);
   pinMode(driverPinDis_, OUTPUT);
-  pinMode(driverPinFS_, INPUT);
+  pinMode(driverPinFS_, INPUT_PULLUP);
 
   enableThrottle();
   analogWrite(driverPinP_,0);
@@ -98,15 +99,15 @@ Throttle::init(
 void
 Throttle::disableThrottle()
 {
-  disableMotor();
   status_.throttleEnabled = 0;
+  disableMotor();
 }
 
 void
 Throttle::enableThrottle()
 {
-  enableMotor();
   status_.throttleEnabled = 1;
+  enableMotor();
 }
 
 void
@@ -177,6 +178,36 @@ Throttle::setSetpointOverride(
     {
       userSetpoint_ = value * 100.0;
     }
+  }
+}
+
+const Throttle::Status &
+Throttle::status() const
+{
+  return status_;
+}
+
+void
+Throttle::clearFault(
+  Throttle::FaultClearCmd_E cmd)
+{
+  const bool clrAll = cmd == FaultClearCmd_E::eFCC_All;
+
+  if (clrAll || cmd == FaultClearCmd_E::eFCC_PPS)
+  {
+    status_.ppsComparisonFault = 0;
+  }
+  if (clrAll || cmd == FaultClearCmd_E::eFCC_TPS)
+  {
+    status_.tpsComparisonFault = 0;
+  }
+  if ((clrAll || cmd == FaultClearCmd_E::eFCC_Driver) && status_.motorDriverFault)
+  {
+    // MC33887 fault status is sticky
+    // need to disable/enable motor to clear
+    disableMotor();
+    enableMotor();
+    status_.motorDriverFault = 0;
   }
 }
 
@@ -280,8 +311,11 @@ Throttle::disableMotor()
 void
 Throttle::enableMotor()
 {
-  digitalWrite(driverPinDis_, 0);
-  status_.motorEnabled = 1;
+  if (status_.throttleEnabled)
+  {
+    digitalWrite(driverPinDis_, 0);
+    status_.motorEnabled = 1;
+  }
 }
 
 void
@@ -453,6 +487,9 @@ Throttle::doThrottle()
     tpsTarget_ = 0;
     motorOut_ = 0;
   }
+
+  // check fault status of the motor driver (active low)
+  status_.motorDriverFault = ! digitalRead(driverPinFS_);
 
   // drive motor outputs
 #ifdef SUPPORT_H_BRIDGE

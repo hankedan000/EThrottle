@@ -64,7 +64,16 @@ public:
     uint8_t tpsComparisonFault : 1;
     uint8_t throttleEnabled    : 1;
     uint8_t motorEnabled       : 1;
-    uint8_t reserved           : 3;
+    uint8_t motorDriverFault   : 1;// over current or over temp.
+    uint8_t reserved           : 2;
+  };
+
+  enum FaultClearCmd_E
+  {
+    eFCC_All = 'A',
+    eFCC_Driver = 'd',
+    eFCC_PPS = 'p',
+    eFCC_TPS = 't',
   };
 
   /**
@@ -203,6 +212,13 @@ public:
   void
   setSetpointOverride(
     double value);
+
+  const Status &
+  status() const;
+
+  void
+  clearFault(
+    FaultClearCmd_E cmd);
 
   /**
    * Call this method every sample interval.
