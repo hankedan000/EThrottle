@@ -1,37 +1,26 @@
-#include "FlashUtils.h"
-#include "EndianUtils.h"
 #include "Throttle.h"
 
 #include <Arduino.h>
 #include <logging.h>
 
+#include "adc_ctrl.h"
+#include "EndianUtils.h"
+#include "FlashUtils.h"
+
 Throttle throttle(
-  TPS_A_PIN,TPS_B_PIN,
-  PPS_A_PIN,PPS_B_PIN,
   DRIVER_P,DRIVER_N,
   DRIVER_DIS,
-  DRIVER_FS,
-  DRIVER_FB);
+  DRIVER_FS);
 
 Throttle::Throttle(
-    uint8_t tpsPinA,
-    uint8_t tpsPinB,
-    uint8_t ppsPinA,
-    uint8_t ppsPinB,
     uint8_t driverPinP,
     uint8_t driverPinN,
     uint8_t driverPinDis,
-    uint8_t driverPinFS,
-    uint8_t driverPinFB)
- : tpsPinA_(tpsPinA)
- , tpsPinB_(tpsPinB)
- , ppsPinA_(ppsPinA)
- , ppsPinB_(ppsPinB)
- , driverPinP_(driverPinP)
+    uint8_t driverPinFS)
+ : driverPinP_(driverPinP)
  , driverPinN_(driverPinN)
  , driverPinDis_(driverPinDis)
  , driverPinFS_(driverPinFS)
- , driverPinFB_(driverPinFB)
  , tpsTarget_(0)
  , tpsStall_(0)
  , idleAdder_(0)
@@ -46,6 +35,18 @@ Throttle::Throttle(
  , ppsCompareThresh_(50)
  , tpsCompareThresh_(50)
 {
+  // setup ADC measurements
+  adc::tpsA.adcMUX = 0;// A0
+  adc::tpsA.mode = adc::MeasurementMode_E::eMM_Continuous;
+  adc::tpsB.adcMUX = 1;// A1
+  adc::tpsB.mode = adc::MeasurementMode_E::eMM_Continuous;
+  adc::ppsA.adcMUX = 2;// A2
+  adc::ppsA.mode = adc::MeasurementMode_E::eMM_Continuous;
+  adc::ppsB.adcMUX = 3;// A3
+  adc::ppsB.mode = adc::MeasurementMode_E::eMM_Continuous;
+  adc::driverFB.adcMUX = 5;// A5
+  adc::driverFB.mode = adc::MeasurementMode_E::eMM_OneShot;
+
   status_.pidAutoTuneBusy = 0;
   status_.ppsComparisonFault = 0;
   status_.tpsComparisonFault = 0;
@@ -216,6 +217,7 @@ Throttle::run()
 {
   doPedal();
   doThrottle();
+  doMotorCurrent();
 
   DEBUG("driverFB: %4d; motorCurrent: %4d mA", driverFB_, motorCurrent_mA_);
 
@@ -284,24 +286,6 @@ Throttle::stopPID_AutoTune()
 }
 
 void
-Throttle::doCurrentMonitor()
-{
-  driverFB_ = analogRead(driverPinFB_);
-
-  // feedback pin drives 1/375th the current to ground through 100ohm resistor.
-  // V_fb = ADC * 5.0v / 1023
-  // V_fb = I * R = I_fb * 100ohm
-  // I_fb = I_m * 1/375
-  //  V_fb -> voltage see over 100ohm resistor
-  //  I_fb -> current out of driver's feedback pin (proportional to I_m)
-  //  I_m  -> current through motor
-  // solve for 'I_m' using the above equations:
-  //  I_m = ADC * (5/1023) * (375/100)
-  //  I_m = ADC * 0.018328 <- in amps
-  motorCurrent_mA_ = driverFB_ * 18.328;
-}
-
-void
 Throttle::disableMotor()
 {
   digitalWrite(driverPinDis_, 1);
@@ -321,8 +305,8 @@ Throttle::enableMotor()
 void
 Throttle::doPedal()
 {
-  ppsA_ = analogRead(ppsPinA_);
-  ppsB_ = analogRead(ppsPinB_);
+  ppsA_ = adc::ppsA.value;
+  ppsB_ = adc::ppsB.value;
 
   // normalize PPS readings based on calibrated min/max values
   int16_t ppsA_Norm = map(ppsA_, ppsCalA_.min, ppsCalA_.max, 0, 10000);
@@ -383,8 +367,8 @@ Throttle::doPedal()
 void
 Throttle::doThrottle()
 {
-  tpsA_ = analogRead(tpsPinA_);
-  tpsB_ = analogRead(tpsPinB_);
+  tpsA_ = adc::tpsA.value;
+  tpsB_ = adc::tpsB.value;
 
   // normalize TPS readings based on calibrated min/max values
   int16_t tpsA_Norm = map(tpsA_, tpsCalA_.min, tpsCalA_.max, 0, 10000);
@@ -457,7 +441,11 @@ Throttle::doThrottle()
 
     pidSetpoint_ = tpsTarget_;  
     pidIn_ = tps_;
-    pid_.Compute();
+    if (pid_.Compute())
+    {
+      // request driver current ADC measurement once a PID cycle
+      adc::driverFB.needsMeasure = 1;
+    }
 
     DEBUG("pidIn_: %f", pidIn_);
 
@@ -486,6 +474,7 @@ Throttle::doThrottle()
   {
     tpsTarget_ = 0;
     motorOut_ = 0;
+    motorCurrent_mA_ = 0;
   }
 
   // update motor driver fault status
@@ -516,4 +505,22 @@ Throttle::doThrottle()
   analogWrite(driverPinP_, motorOut_);
   analogWrite(driverPinN_, 0);
 #endif
+}
+
+void
+Throttle::doMotorCurrent()
+{
+  driverFB_ = adc::driverFB.value;
+
+  // feedback pin drives 1/375th the current to ground through 100ohm resistor.
+  // V_fb = ADC * 5.0v / 1023
+  // V_fb = I * R = I_fb * 100ohm
+  // I_fb = I_m * 1/375
+  //  V_fb -> voltage see over 100ohm resistor
+  //  I_fb -> current out of driver's feedback pin (proportional to I_m)
+  //  I_m  -> current through motor
+  // solve for 'I_m' using the above equations:
+  //  I_m = ADC * (5/1023) * (375/100)
+  //  I_m = ADC * 0.018328 <- in amps
+  motorCurrent_mA_ = driverFB_ * 18.328;
 }
