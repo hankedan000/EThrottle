@@ -1,37 +1,26 @@
-#include "FlashUtils.h"
-#include "EndianUtils.h"
 #include "Throttle.h"
 
 #include <Arduino.h>
 #include <logging.h>
 
+#include "adc_ctrl.h"
+#include "EndianUtils.h"
+#include "FlashUtils.h"
+
 Throttle throttle(
-  TPS_A_PIN,TPS_B_PIN,
-  PPS_A_PIN,PPS_B_PIN,
   DRIVER_P,DRIVER_N,
   DRIVER_DIS,
-  DRIVER_FS,
-  DRIVER_FB);
+  DRIVER_FS);
 
 Throttle::Throttle(
-    uint8_t tpsPinA,
-    uint8_t tpsPinB,
-    uint8_t ppsPinA,
-    uint8_t ppsPinB,
     uint8_t driverPinP,
     uint8_t driverPinN,
     uint8_t driverPinDis,
-    uint8_t driverPinFS,
-    uint8_t driverPinFB)
- : tpsPinA_(tpsPinA)
- , tpsPinB_(tpsPinB)
- , ppsPinA_(ppsPinA)
- , ppsPinB_(ppsPinB)
- , driverPinP_(driverPinP)
+    uint8_t driverPinFS)
+ : driverPinP_(driverPinP)
  , driverPinN_(driverPinN)
  , driverPinDis_(driverPinDis)
  , driverPinFS_(driverPinFS)
- , driverPinFB_(driverPinFB)
  , tpsTarget_(0)
  , tpsStall_(0)
  , idleAdder_(0)
@@ -46,6 +35,35 @@ Throttle::Throttle(
  , ppsCompareThresh_(50)
  , tpsCompareThresh_(50)
 {
+  // setup ADC measurements
+  adc::tpsA.adcMUX = 0;// A0
+  adc::tpsA.mMode = adc::MeasurementMode_E::eMM_Continuous;
+  adc::tpsB.adcMUX = 1;// A1
+  adc::tpsB.mMode = adc::MeasurementMode_E::eMM_Continuous;
+  adc::ppsA.adcMUX = 2;// A2
+  adc::ppsA.mMode = adc::MeasurementMode_E::eMM_Continuous;
+  adc::ppsB.adcMUX = 3;// A3
+  adc::ppsB.mMode = adc::MeasurementMode_E::eMM_Continuous;
+  adc::driverFB.adcMUX = 5;// A5
+  adc::driverFB.mMode = adc::MeasurementMode_E::eMM_OneShot;
+  // Rationale for triggering current feedback off timer0 overflow:
+  //
+  // The motor pins are driven by PD6 (OC0A) and PD5 (OC0B).
+  // Those pins are driven by the timer0 PWM logic.
+  // Here's the timer 0 config set by Arduino's wiring library.
+  // TCCR0A: 0x83
+  // TCCR0B: 0x03
+  //   WGM   -> 0x011 (Fast PWM mode)
+  //   COM0A -> 0b10 (clear OCA on compare match, set OCA at BOTTOM)
+  //   COM0B -> 0b10 (clear OCB on compare match, set OCB at BOTTOM)
+  //   CS    -> 0b011 (Clk_io / 64)
+  // Motor driver measurements must we precisely taken when the PWM
+  // outputs are being driven high; otherwise, the readings are too
+  // random. Since both PWM outputs are driven high when timer0 hits
+  // BOTTOM (ie. overflows), we can auto trigger the current feedback
+  // ADC measurement off of the timer0 overflow event.
+  adc::driverFB.tMode = adc::TriggerMode_E::eTM_Tmr0_Ovrf;
+
   status_.pidAutoTuneBusy = 0;
   status_.ppsComparisonFault = 0;
   status_.tpsComparisonFault = 0;
@@ -216,6 +234,7 @@ Throttle::run()
 {
   doPedal();
   doThrottle();
+  doMotorCurrent();
 
   DEBUG("driverFB: %4d; motorCurrent: %4d mA", driverFB_, motorCurrent_mA_);
 
@@ -233,6 +252,7 @@ Throttle::run()
     outVars_->status = status_;
     EndianUtils::setBE(outVars_->idleAdder, idleAdder_);
     EndianUtils::setBE(outVars_->ppsAdder, ppsAdder_);
+    EndianUtils::setBE(outVars_->driverFB, driverFB_);
   }
 }
 
@@ -284,24 +304,6 @@ Throttle::stopPID_AutoTune()
 }
 
 void
-Throttle::doCurrentMonitor()
-{
-  driverFB_ = analogRead(driverPinFB_);
-
-  // feedback pin drives 1/375th the current to ground through 100ohm resistor.
-  // V_fb = ADC * 5.0v / 1023
-  // V_fb = I * R = I_fb * 100ohm
-  // I_fb = I_m * 1/375
-  //  V_fb -> voltage see over 100ohm resistor
-  //  I_fb -> current out of driver's feedback pin (proportional to I_m)
-  //  I_m  -> current through motor
-  // solve for 'I_m' using the above equations:
-  //  I_m = ADC * (5/1023) * (375/100)
-  //  I_m = ADC * 0.018328 <- in amps
-  motorCurrent_mA_ = driverFB_ * 18.328;
-}
-
-void
 Throttle::disableMotor()
 {
   digitalWrite(driverPinDis_, 1);
@@ -321,8 +323,8 @@ Throttle::enableMotor()
 void
 Throttle::doPedal()
 {
-  ppsA_ = analogRead(ppsPinA_);
-  ppsB_ = analogRead(ppsPinB_);
+  ppsA_ = adc::ppsA.value;
+  ppsB_ = adc::ppsB.value;
 
   // normalize PPS readings based on calibrated min/max values
   int16_t ppsA_Norm = map(ppsA_, ppsCalA_.min, ppsCalA_.max, 0, 10000);
@@ -383,8 +385,8 @@ Throttle::doPedal()
 void
 Throttle::doThrottle()
 {
-  tpsA_ = analogRead(tpsPinA_);
-  tpsB_ = analogRead(tpsPinB_);
+  tpsA_ = adc::tpsA.value;
+  tpsB_ = adc::tpsB.value;
 
   // normalize TPS readings based on calibrated min/max values
   int16_t tpsA_Norm = map(tpsA_, tpsCalA_.min, tpsCalA_.max, 0, 10000);
@@ -437,6 +439,7 @@ Throttle::doThrottle()
   }
 
   // update PID controller
+  bool newCycle = 0;
   if (status_.throttleEnabled)
   {
     switch (setpointSource_)
@@ -457,7 +460,7 @@ Throttle::doThrottle()
 
     pidSetpoint_ = tpsTarget_;  
     pidIn_ = tps_;
-    pid_.Compute();
+    newCycle = pid_.Compute();
 
     DEBUG("pidIn_: %f", pidIn_);
 
@@ -486,10 +489,18 @@ Throttle::doThrottle()
   {
     tpsTarget_ = 0;
     motorOut_ = 0;
+    motorCurrent_mA_ = 0;
   }
 
-  // check fault status of the motor driver (active low)
-  status_.motorDriverFault = ! digitalRead(driverPinFS_);
+  // update motor driver fault status
+  // The MC33887 fault status pin is active low. It will assert the fault status
+  // pin if the driver is in the disabled state. Since we sometimes disable the
+  // motor driver on purpose, I'm checking that we intentionally have the motor
+  // in the enabled state before flagging a fault.
+  if (status_.motorEnabled && digitalRead(driverPinFS_) == 0)
+  {
+    status_.motorDriverFault = 1;
+  }
 
   // drive motor outputs
 #ifdef SUPPORT_H_BRIDGE
@@ -497,9 +508,13 @@ Throttle::doThrottle()
   if (motorOut_ > 0) {
     analogWrite(driverPinP_, motorOut_);
     analogWrite(driverPinN_, 0);
+    // setup motor current measurement on OC0B match ISR (motor P is on pin 5 - OC0B)
+    adc::driverFB.tMode = adc::TriggerMode_E::eTM_ISR_Tmr0_OCB;
   } else if (motorOut_ < 0) {
     analogWrite(driverPinP_, 0);
     analogWrite(driverPinN_, motorOut_ * -1);// * -1 to write PWM magnitude only
+    // setup motor current measurement on OC0A match ISR (motor N is on pin 6 - OC0A)
+    adc::driverFB.tMode = adc::TriggerMode_E::eTM_ISR_Tmr0_OCA;
   } else {
     analogWrite(driverPinP_, 0);
     analogWrite(driverPinN_, 0);
@@ -508,5 +523,28 @@ Throttle::doThrottle()
   // no h-bridge means we can only drive the motor 1 way
   analogWrite(driverPinP_, motorOut_);
   analogWrite(driverPinN_, 0);
+  // setup motor current measurement on OC0B match ISR (motor P is on pin 5 - OC0B)
+  adc::driverFB.tMode = adc::TriggerMode_E::eTM_ISR_Tmr0_OCB;
 #endif
+
+  // request driver current ADC measurement once a PID cycle
+  adc::driverFB.needsMeasure = newCycle;
+}
+
+void
+Throttle::doMotorCurrent()
+{
+  driverFB_ = adc::driverFB.value;
+
+  // feedback pin drives 1/375th the current to ground through 100ohm resistor.
+  // V_fb = ADC * 5.0v / 1023
+  // V_fb = I * R = I_fb * 100ohm
+  // I_fb = I_m * 1/375
+  //  V_fb -> voltage see over 100ohm resistor
+  //  I_fb -> current out of driver's feedback pin (proportional to I_m)
+  //  I_m  -> current through motor
+  // solve for 'I_m' using the above equations:
+  //  I_m = ADC * (5/1023) * (375/100)
+  //  I_m = ADC * 0.018328 <- in amps
+  motorCurrent_mA_ = driverFB_ * 18.328;
 }

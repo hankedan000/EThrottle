@@ -12,17 +12,10 @@
 // bring the throttle blade closed (slow but still functional)
 #define SUPPORT_H_BRIDGE
 
-// analog inputs (there are all analog pins ie A0, A1, etc)
-#define TPS_A_PIN A0
-#define TPS_B_PIN A1
-#define PPS_A_PIN A2
-#define PPS_B_PIN A3
-#define DRIVER_FB A5
-
 // digital outputs
 #define DRIVER_DIS 4
-#define DRIVER_P   5// pin needs PWM support
-#define DRIVER_N   6// pin needs PWM support
+#define DRIVER_P   5// pin needs PWM support (PD5 OC0B)
+#define DRIVER_N   6// pin needs PWM support (PD6 OC0A)
 #define DRIVER_FS  7
 
 class Throttle
@@ -135,19 +128,18 @@ public:
     // ppsAdder = ((10000 - idleAdder) * pps) / 10000
     // range: [-10000 to 10000] (ie. -100 to 100%)
     int16_t ppsAdder;
+
+    // ADC readings from motor driver feedback pin
+    // range: [0 to 1023]
+    uint16_t driverFB;
   };
 
 public:
   Throttle(
-    uint8_t tpsPinA,
-    uint8_t tpsPinB,
-    uint8_t ppsPinA,
-    uint8_t ppsPinB,
     uint8_t driverPinP,
     uint8_t driverPinN,
     uint8_t driverPinDis,
-    uint8_t driverPinFS,
-    uint8_t driverPinFB);
+    uint8_t driverPinFS);
 
   /**
    * Configures IO pins and internal classes.
@@ -250,9 +242,6 @@ public:
   void
   stopPID_AutoTune();
 
-  void
-  doCurrentMonitor();  
-
 private:
   void
   disableMotor();
@@ -266,16 +255,14 @@ private:
   void
   doThrottle();
 
+  void
+  doMotorCurrent();
+
 private:
-    uint8_t tpsPinA_;
-    uint8_t tpsPinB_;
-    uint8_t ppsPinA_;
-    uint8_t ppsPinB_;
     uint8_t driverPinP_;
     uint8_t driverPinN_;
     uint8_t driverPinDis_;
     uint8_t driverPinFS_;
-    uint8_t driverPinFB_;
 
     // calibration for the pedal position sensor readings.
     // 'min' value is the ADC reading at 0% throttle

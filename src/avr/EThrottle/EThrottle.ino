@@ -1,6 +1,7 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include "adc_ctrl.h"
 #include "can.h"
 #include "EndianUtils.h"
 #include <logging.h>
@@ -32,6 +33,11 @@ void setup() {
   loadSensorSetupFromFlash(throttle);
 
   canSetup();
+
+  if ( ! adc::start())
+  {
+    WARN("no ADC measurements enabled");
+  }
 }
 
 void loop() {
