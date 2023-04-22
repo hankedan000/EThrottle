@@ -488,8 +488,15 @@ Throttle::doThrottle()
     motorOut_ = 0;
   }
 
-  // check fault status of the motor driver (active low)
-  status_.motorDriverFault = ! digitalRead(driverPinFS_);
+  // update motor driver fault status
+  // The MC33887 fault status pin is active low. It will assert the fault status
+  // pin if the driver is in the disabled state. Since we sometimes disable the
+  // motor driver on purpose, I'm checking that we intentionally have the motor
+  // in the enabled state before flagging a fault.
+  if (status_.motorEnabled && digitalRead(driverPinFS_) == 0)
+  {
+    status_.motorDriverFault = 1;
+  }
 
   // drive motor outputs
 #ifdef SUPPORT_H_BRIDGE
