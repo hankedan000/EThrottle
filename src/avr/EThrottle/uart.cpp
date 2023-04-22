@@ -92,6 +92,9 @@ processUartCmd()
         INFO("started PID auto-tune");
       }
       break;
+    case 'c':
+      throttle.clearFault((Throttle::FaultClearCmd_E)(uartCmdBuff[1]));
+      break;
     case 's':
       if (throttle.getSetpointSource() == Throttle::SetpointSource_E::eSS_User) {
         throttle.setSetpointOverride(val);

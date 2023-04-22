@@ -21,6 +21,10 @@ pushedUartCmdBytes(
   uint8_t nBytes);
 
 // a      -> auto tune PID controller
+// cA     -> clear all faults
+// cd     -> clear driver fault
+// cp     -> clear PPS fault
+// ct     -> clear TPS fault
 // p###   -> set 'Kp' to ### (where ### is a float from 0.0 to 1.0)
 // i###   -> set 'Ki' to ### (where ### is a float from 0.0 to 1.0)
 // d###   -> set 'Kd' to ### (where ### is a float from 0.0 to 1.0)
