@@ -15,11 +15,28 @@ namespace adc
     eMM_OneShot
   };
 
+  // specify how the ADC should be started once an entry becomes
+  // ready for scheduling.
+  // Note: values correspond to ADC Auto Trigger Source values (reg ADCSRB)
+  enum TriggerMode_E
+  {
+    eTM_Immediate = 0,
+    eTM_Tmr0_MatchA = 3,
+    eTM_Tmr0_Ovrf = 4,
+    eTM_Tmr1_MatchB = 5,
+    eTM_Tmr1_Ovrf = 6,
+    eTM_Tmr1_CapEvt = 7,
+
+    eTM_ISR_Tmr0_OCA = 20,
+    eTM_ISR_Tmr0_OCB = 21
+  };
+
   struct CtrlEntry
   {
     CtrlEntry()
     : adcMUX(0)
-    , mode(MeasurementMode_E::eMM_Disabled)
+    , mMode(MeasurementMode_E::eMM_Disabled)
+    , tMode(TriggerMode_E::eTM_Immediate)
     , needsMeasure(0)
     , value(0)
     {}
@@ -27,7 +44,9 @@ namespace adc
     // adc mux value to use for measurement
     unsigned int adcMUX;
 
-    MeasurementMode_E mode;
+    MeasurementMode_E mMode;
+
+    volatile TriggerMode_E tMode;
 
     volatile uint8_t needsMeasure;
 

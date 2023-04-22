@@ -37,15 +37,32 @@ Throttle::Throttle(
 {
   // setup ADC measurements
   adc::tpsA.adcMUX = 0;// A0
-  adc::tpsA.mode = adc::MeasurementMode_E::eMM_Continuous;
+  adc::tpsA.mMode = adc::MeasurementMode_E::eMM_Continuous;
   adc::tpsB.adcMUX = 1;// A1
-  adc::tpsB.mode = adc::MeasurementMode_E::eMM_Continuous;
+  adc::tpsB.mMode = adc::MeasurementMode_E::eMM_Continuous;
   adc::ppsA.adcMUX = 2;// A2
-  adc::ppsA.mode = adc::MeasurementMode_E::eMM_Continuous;
+  adc::ppsA.mMode = adc::MeasurementMode_E::eMM_Continuous;
   adc::ppsB.adcMUX = 3;// A3
-  adc::ppsB.mode = adc::MeasurementMode_E::eMM_Continuous;
+  adc::ppsB.mMode = adc::MeasurementMode_E::eMM_Continuous;
   adc::driverFB.adcMUX = 5;// A5
-  adc::driverFB.mode = adc::MeasurementMode_E::eMM_OneShot;
+  adc::driverFB.mMode = adc::MeasurementMode_E::eMM_OneShot;
+  // Rationale for triggering current feedback off timer0 overflow:
+  //
+  // The motor pins are driven by PD6 (OC0A) and PD5 (OC0B).
+  // Those pins are driven by the timer0 PWM logic.
+  // Here's the timer 0 config set by Arduino's wiring library.
+  // TCCR0A: 0x83
+  // TCCR0B: 0x03
+  //   WGM   -> 0x011 (Fast PWM mode)
+  //   COM0A -> 0b10 (clear OCA on compare match, set OCA at BOTTOM)
+  //   COM0B -> 0b10 (clear OCB on compare match, set OCB at BOTTOM)
+  //   CS    -> 0b011 (Clk_io / 64)
+  // Motor driver measurements must we precisely taken when the PWM
+  // outputs are being driven high; otherwise, the readings are too
+  // random. Since both PWM outputs are driven high when timer0 hits
+  // BOTTOM (ie. overflows), we can auto trigger the current feedback
+  // ADC measurement off of the timer0 overflow event.
+  adc::driverFB.tMode = adc::TriggerMode_E::eTM_Tmr0_Ovrf;
 
   status_.pidAutoTuneBusy = 0;
   status_.ppsComparisonFault = 0;
@@ -235,6 +252,7 @@ Throttle::run()
     outVars_->status = status_;
     EndianUtils::setBE(outVars_->idleAdder, idleAdder_);
     EndianUtils::setBE(outVars_->ppsAdder, ppsAdder_);
+    EndianUtils::setBE(outVars_->driverFB, driverFB_);
   }
 }
 
@@ -421,6 +439,7 @@ Throttle::doThrottle()
   }
 
   // update PID controller
+  bool newCycle = 0;
   if (status_.throttleEnabled)
   {
     switch (setpointSource_)
@@ -441,11 +460,7 @@ Throttle::doThrottle()
 
     pidSetpoint_ = tpsTarget_;  
     pidIn_ = tps_;
-    if (pid_.Compute())
-    {
-      // request driver current ADC measurement once a PID cycle
-      adc::driverFB.needsMeasure = 1;
-    }
+    newCycle = pid_.Compute();
 
     DEBUG("pidIn_: %f", pidIn_);
 
@@ -493,9 +508,13 @@ Throttle::doThrottle()
   if (motorOut_ > 0) {
     analogWrite(driverPinP_, motorOut_);
     analogWrite(driverPinN_, 0);
+    // setup motor current measurement on OC0B match ISR (motor P is on pin 5 - OC0B)
+    adc::driverFB.tMode = adc::TriggerMode_E::eTM_ISR_Tmr0_OCB;
   } else if (motorOut_ < 0) {
     analogWrite(driverPinP_, 0);
     analogWrite(driverPinN_, motorOut_ * -1);// * -1 to write PWM magnitude only
+    // setup motor current measurement on OC0A match ISR (motor N is on pin 6 - OC0A)
+    adc::driverFB.tMode = adc::TriggerMode_E::eTM_ISR_Tmr0_OCA;
   } else {
     analogWrite(driverPinP_, 0);
     analogWrite(driverPinN_, 0);
@@ -504,7 +523,12 @@ Throttle::doThrottle()
   // no h-bridge means we can only drive the motor 1 way
   analogWrite(driverPinP_, motorOut_);
   analogWrite(driverPinN_, 0);
+  // setup motor current measurement on OC0B match ISR (motor P is on pin 5 - OC0B)
+  adc::driverFB.tMode = adc::TriggerMode_E::eTM_ISR_Tmr0_OCB;
 #endif
+
+  // request driver current ADC measurement once a PID cycle
+  adc::driverFB.needsMeasure = newCycle;
 }
 
 void

@@ -14,8 +14,8 @@
 
 // digital outputs
 #define DRIVER_DIS 4
-#define DRIVER_P   5// pin needs PWM support
-#define DRIVER_N   6// pin needs PWM support
+#define DRIVER_P   5// pin needs PWM support (PD5 OC0B)
+#define DRIVER_N   6// pin needs PWM support (PD6 OC0A)
 #define DRIVER_FS  7
 
 class Throttle
@@ -128,6 +128,10 @@ public:
     // ppsAdder = ((10000 - idleAdder) * pps) / 10000
     // range: [-10000 to 10000] (ie. -100 to 100%)
     int16_t ppsAdder;
+
+    // ADC readings from motor driver feedback pin
+    // range: [0 to 1023]
+    uint16_t driverFB;
   };
 
 public:
