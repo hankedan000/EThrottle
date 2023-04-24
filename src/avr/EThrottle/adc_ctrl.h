@@ -60,7 +60,11 @@ namespace adc
   extern CtrlEntry tpsB;
   extern CtrlEntry driverFB;
 
-  extern uint16_t conversionCount;
+  // running count of individual ADC conversions completed
+  volatile extern uint16_t conversionCount;
+
+  // running count of ADC schedule cycles completed
+  volatile extern uint16_t conversionCycles;
 
   // @return
   // 1 if measurements were started

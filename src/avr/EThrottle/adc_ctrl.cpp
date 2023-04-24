@@ -12,7 +12,8 @@ namespace adc
   CtrlEntry tpsA;
   CtrlEntry tpsB;
   CtrlEntry driverFB;
-  uint16_t conversionCount;
+  volatile uint16_t conversionCount;
+  volatile uint16_t conversionCycles;
 
   // current 
   volatile uint8_t schedIdx = 0;
@@ -102,6 +103,7 @@ namespace adc
       if (schedIdx >= ARRAY_LEN(sched))
       {
         schedIdx = 0;
+        conversionCycles++;
       }
       if (schedIdx == origIdx)
       {
@@ -179,6 +181,10 @@ namespace adc
     pinMode(STROBE_PIN, OUTPUT);
 #endif
 
+    // reset counters
+    conversionCount = 0;
+    conversionCycles = 0;
+
     // disable digital input on pins used for ADC
     DIDR0 = 0x0;
     for (uint8_t i=0; i<ARRAY_LEN(sched); i++)
@@ -190,7 +196,13 @@ namespace adc
     }
 
     // start conversions
-    return findAndStartNext();
+    const uint8_t setupOk = findAndStartNext();
+    if (setupOk)
+    {
+      // wait for a full conversion cycle to complete
+      while (conversionCycles == 0) {}
+    }
+    return setupOk;
   }
 
   void
