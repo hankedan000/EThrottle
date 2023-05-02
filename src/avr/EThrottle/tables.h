@@ -100,7 +100,8 @@ struct Page1_T
   uint16_t ppsCompareThresh;
   uint16_t tpsCompareThresh;
   uint16_t tpsStall;
-  uint8_t reserved[62];
+  uint16_t msqRtBcastBaseId;// default is 1520
+  uint8_t reserved[60];
 };
 static_assert(sizeof(Page1_T) == PAGE1_SIZE);
 static_assert(sizeof(Page1_T) <= MEGA_CAN_EXT_MAX_FLASH_TABLE_SIZE);

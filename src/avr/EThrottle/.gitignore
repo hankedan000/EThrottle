@@ -1,0 +1,2 @@
+# ignore arduino's exported build artifacts directory
+build/
