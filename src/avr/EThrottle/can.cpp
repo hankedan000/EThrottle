@@ -1,3 +1,4 @@
+#include "FlashUtils.h"
 #include "Arduino.h"
 #include "can.h"
 
@@ -13,6 +14,9 @@ SET_MEGA_CAN_REV("OpenGPIO-1.0.0     ");
 #define STROBE_PIN 8
 #define STROBE_ON_INT       0
 #define STROBE_ON_HANDLE    1
+
+// declare external variables
+uint16_t ecuRtBcastBaseId = 0xFFFF;// loaded from flash in canSetup()
 
 // external interrupt service routine for CAN message on MCP2515
 void
@@ -76,6 +80,8 @@ canSetup()
   canDev.setOnTableWrittenCallback(onTableWritten);
   pinMode(CAN_INT, INPUT_PULLUP);// Configuring pin for CAN interrupt input
   attachInterrupt(digitalPinToInterrupt(CAN_INT), canISR, LOW);
+
+  ecuRtBcastBaseId = FlashUtils::flashRead_BE<uint16_t>(PAGE1_FIELD_OFFSET(msqRtBcastBaseId));
 
   sei();// enable interrupts
 }

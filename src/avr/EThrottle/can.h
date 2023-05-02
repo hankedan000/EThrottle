@@ -68,8 +68,8 @@ private:
 
 };
 
-// TODO read from flash
-inline uint16_t ecuRtBcastBaseId = 1520;
+// the realtime data base message ID used by megasquirt
+extern uint16_t ecuRtBcastBaseId;
 
 inline MegaCAN::CAN_Msg canBuff[CAN_MSG_BUFFER_SIZE];
 inline EThrottleCAN canDev(CAN_CS,CAN_ID,CAN_INT,canBuff,CAN_MSG_BUFFER_SIZE,TABLES,NUM_TABLES);
