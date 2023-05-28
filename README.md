@@ -15,6 +15,6 @@ This repo contains source code and PCB design files for a Megasquirt Extended CA
 # Printed Circuit Board
 Here's a photo of the printed circuit board (PCB) that I've designed.
 
-![PCB_v1](/doc/board_layout/pcb_v1.png)
+![PCB_v1](/doc/board_layout/pcb_v1.0.png)
 
 The [EasyEDA](https://easyeda.com/) project files for the board are located in [/src/pcb/](/src/pcb/). My board is designed to be installed into the prototype area of the Megasquirt DIYPNP via a 20pin header connection.
