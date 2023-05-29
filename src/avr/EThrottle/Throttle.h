@@ -132,6 +132,11 @@ public:
     // ADC readings from motor driver feedback pin
     // range: [0 to 1023]
     uint16_t driverFB;
+
+    // running count of how many sensor comparison faults there have been.
+    // not that these counters wrap when they overflow.
+    uint8_t ppsCompFaultCount;
+    uint8_t tpsCompFaultCount;
   };
 
 public:
@@ -365,6 +370,21 @@ private:
     // delta in the sensor comparison logic. usually set to 50 or so.
     uint16_t ppsCompareThresh_;
     uint16_t tpsCompareThresh_;
+
+    // ---------------------------------
+    // fault filter variables
+    // ---------------------------------
+    // fault timeouts
+    //  * set to ST_FAULT_TIMEOUT_MAX when a fault occurs
+    //  * decremented by 1 when no fault is observed
+    //  * exits short term fault mode when reaches 0
+    uint8_t ppsFaultTimeout_;
+    uint8_t tpsFaultTimeout_;
+    // long term fault counters
+    //  * incremented by 1 each time a fault is observed while in short term fault mode
+    //  * reset to 0 once we leave short term fault mode
+    uint8_t ppsLT_FaultCnt_;
+    uint8_t tpsLT_FaultCnt_;
 
 };
 
