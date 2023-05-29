@@ -45,7 +45,7 @@ struct OutPC_T
   uint8_t mcusr;                    // offset 5
   uint8_t reserved0[4];             // offset 6
   Throttle::OutVars throttleOutVars;// offset 10 (29bytes)
-  uint8_t reserved1[89];
+  uint8_t reserved1[87];
 };
 static_assert(sizeof(OutPC_T) == PAGE0_SIZE);
 
