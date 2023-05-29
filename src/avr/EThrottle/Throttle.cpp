@@ -359,6 +359,7 @@ Throttle::doPedal()
       ppsCompDesc_.nBins,
       preferADC);
     const int16_t ppsDelta = otherADC - otherExpected;
+    EndianUtils::setBE(outVars_->ppsSafetyDelta, ppsDelta);
     DEBUG(
       "preferADC = %d, otherADC = %d, otherExpected = %d, ppsDelta = %d",
       preferADC,
@@ -366,15 +367,10 @@ Throttle::doPedal()
       otherExpected,
       ppsDelta);
 
-    if (outVars_)
-    {
-      EndianUtils::setBE(outVars_->ppsSafetyDelta, ppsDelta);
-    }
-
     if (abs(ppsDelta) >= ppsCompareThresh_)
     {
       pps_ = 0;// default to 0% pedal position to be safe
-      // TODO add error counter?
+      outVars_->ppsFaultCount++;
       status_.ppsComparisonFault = 1;
     }
   }
@@ -414,6 +410,7 @@ Throttle::doThrottle()
       tpsCompDesc_.nBins,
       preferADC);
     const int16_t tpsDelta = otherADC - otherExpected;
+    EndianUtils::setBE(outVars_->tpsSafetyDelta, tpsDelta);
     DEBUG(
       "preferADC = %d, otherADC = %d, otherExpected = %d, tpsDelta = %d",
       preferADC,
@@ -421,19 +418,14 @@ Throttle::doThrottle()
       otherExpected,
       tpsDelta);
 
-    if (outVars_)
-    {
-      EndianUtils::setBE(outVars_->tpsSafetyDelta, tpsDelta);
-    }
-
     if (abs(tpsDelta) >= tpsCompareThresh_)
     {
       // Best to disable motor since we have unreliable position info for the
       // throttle blade. This assumes the throttle has a return spring that will
       // close the throttle blade when the motor is unpowered.
-      disableMotor();
+      // disableMotor();
       tps_ = 0;
-      // TODO add error counter?
+      outVars_->tpsFaultCount++;
       status_.tpsComparisonFault = 1;
     }
   }

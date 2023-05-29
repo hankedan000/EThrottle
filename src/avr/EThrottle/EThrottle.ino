@@ -26,18 +26,22 @@ Throttle::OutVars *throttleVars = &outPC.throttleOutVars;
 
 void setup() {
   setupLogging(115200);
+  INFO("logging setup!");
 
   throttle.init(PID_SAMPLE_RATE_MS, throttleVars);
   loadThrottlePID_FromFlash(throttle);
   loadSensorCalibrationsFromFlash(throttle);
   loadSensorSetupFromFlash(throttle);
+  INFO("throttle setup!");
 
   canSetup();
+  INFO("can setup!");
 
   if ( ! adc::start())
   {
     WARN("no ADC measurements enabled");
   }
+  INFO("ADC setup!");
 }
 
 void loop() {

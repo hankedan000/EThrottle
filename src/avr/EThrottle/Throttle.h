@@ -132,6 +132,10 @@ public:
     // ADC readings from motor driver feedback pin
     // range: [0 to 1023]
     uint16_t driverFB;
+
+    // long term fault counters
+    uint8_t ppsFaultCount;
+    uint8_t tpsFaultCount;
   };
 
 public:
