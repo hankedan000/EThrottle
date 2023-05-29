@@ -1,8 +1,10 @@
 #include "uart.h"
 
+#include <avr/wdt.h>
 #include <Arduino.h>
 #include <logging.h>
 
+#include "config.h"
 #include "tables.h"
 #include "Throttle.h"
 
@@ -94,6 +96,16 @@ processUartCmd()
       break;
     case 'c':
       throttle.clearFault((Throttle::FaultClearCmd_E)(uartCmdBuff[1]));
+      break;
+    case 'r':
+#if WATCHDOG_SUPPORT
+      // soft reset MCU via watchdog timeout
+      cli();
+      wdt_enable(WDTO_15MS);
+      while(1){}
+#else
+      WARN("cant reset. WATCHDOG is OFF");
+#endif
       break;
     case 's':
       if (throttle.getSetpointSource() == Throttle::SetpointSource_E::eSS_User) {

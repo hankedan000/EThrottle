@@ -5,6 +5,7 @@
 
 #include "adc_ctrl.h"
 #include "can.h"
+#include "config.h"
 #include "EndianUtils.h"
 #include <logging.h>
 #include "Throttle.h"
@@ -23,19 +24,7 @@
                 // 12 CAN MISO
                 // 13 CAN SCK
 
-#define PID_SAMPLE_RATE_MS 10// 10ms
 Throttle::OutVars *throttleVars = &outPC.throttleOutVars;
-
-// define this if you have the mcp-can-boot bootloader installed
-//  * allows for remote reflashing via CAN
-//  * watchdog reset support (regular Arduino bootloader doesn't support)
-#undef MCP_CAN_BOOT_BL
-
-// toggle for watchdog support
-#define WATCHDOG_SUPPORT 0
-#ifdef MCP_CAN_BOOT_BL
-#define WATCHDOG_SUPPORT 1// auto enable watchdog if using mcp-can-boot bootloader
-#endif
 
 // setup watchdog
 void wdtInit() {
