@@ -41,7 +41,9 @@ struct OutPC_T
     } bits;
     uint8_t value;
   } status0;                        // offset 4
-  uint8_t reserved0[5];             // offset 5
+  // contents of MCUSR (only valid if using mcp-can-boot bootloader)
+  uint8_t mcusr;                    // offset 5
+  uint8_t reserved0[4];             // offset 6
   Throttle::OutVars throttleOutVars;// offset 10 (29bytes)
   uint8_t reserved1[87];
 };
