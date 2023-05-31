@@ -34,18 +34,14 @@ void wdtInit() {
   sei();
 }
 
-// retrieves the MCU reset cause (MCUSR register) when using the mcp-can-boot
-// bootloader (https://github.com/crycode-de/mcp-can-boot).
-// no need to call this explicitly, it will get called by init0.
+void setup() {
 #ifdef MCP_CAN_BOOT_BL
-uint8_t mcusr __attribute__ ((section (".noinit")));
-void getMCUSR(void) __attribute__((naked)) __attribute__((section(".init0")));
-void getMCUSR(void) {
+  // retrieves the MCU reset cause (MCUSR register) when using the
+  // mcp-can-boot bootloader (https://github.com/crycode-de/mcp-can-boot).
+  uint8_t mcusr;
   __asm__ __volatile__ ( "mov %0, r2 \n" : "=r" (mcusr) : );
-}
 #endif
 
-void setup() {
 #if WATCHDOG_SUPPORT
   wdtInit();// start watchdog
 #endif
