@@ -6,12 +6,12 @@
 #include "MSG_defn.h"
 #include "uart.h"
 
-SET_MEGA_CAN_SIG("EThrottle");
-SET_MEGA_CAN_REV("OpenGPIO-1.0.0     ");
+DECL_MEGA_CAN_REV("EThrottle");
+DECL_MEGA_CAN_SIG("OpenGPIO-1.0.0     ");
 
 // toggle a pin on different CAN events
 #define ENABLE_CAN_STROBES  0 // global enable
-#define STROBE_PIN 8
+#define STROBE_PIN          8
 #define STROBE_ON_INT       0
 #define STROBE_ON_HANDLE    1
 
