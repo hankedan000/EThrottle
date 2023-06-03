@@ -1,8 +1,11 @@
+#include <avr/sfr_defs.h>
+#include <avr/wdt.h>
 #include <string.h>
 #include <stdlib.h>
 
 #include "adc_ctrl.h"
 #include "can.h"
+#include "config.h"
 #include "EndianUtils.h"
 #include <logging.h>
 #include "Throttle.h"
@@ -21,11 +24,36 @@
                 // 12 CAN MISO
                 // 13 CAN SCK
 
-#define PID_SAMPLE_RATE_MS 10// 10ms
 Throttle::OutVars *throttleVars = &outPC.throttleOutVars;
 
+// setup watchdog
+void wdtInit() {
+  cli();// disable interrupts
+  wdt_reset();// reset watchdog
+  wdt_enable(WDTO_15MS);// start watchdog timer with 15ms timeout
+  sei();
+}
+
 void setup() {
+#ifdef MCP_CAN_BOOT_BL
+  // retrieves the MCU reset cause (MCUSR register) when using the
+  // mcp-can-boot bootloader (https://github.com/crycode-de/mcp-can-boot).
+  uint8_t mcusr;
+  __asm__ __volatile__ ( "mov %0, r2 \n" : "=r" (mcusr) : );
+#endif
+
+#if WATCHDOG_SUPPORT
+  wdtInit();// start watchdog
+#endif
+
   setupLogging(115200);
+  INFO("WATCHDOG: %s", (WATCHDOG_SUPPORT ? "ON" : "OFF"));
+#ifdef MCP_CAN_BOOT_BL
+  outPC.mcusr = mcusr;
+  INFO("MCUSR: 0x%x", mcusr);
+#else
+  outPC.mcusr = 0;// arduino bootloader doesn't preserve MCUSR contents
+#endif
 
   throttle.init(PID_SAMPLE_RATE_MS, throttleVars);
   loadThrottlePID_FromFlash(throttle);
@@ -41,6 +69,7 @@ void setup() {
 }
 
 void loop() {
+  wdt_reset();// throw watchdog a bone
   uint32_t loopStartTimeUs = micros();
 
   doUart();
