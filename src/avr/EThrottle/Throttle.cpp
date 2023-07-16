@@ -11,6 +11,12 @@
 #define LT_FAULT_TIMEOUT_MAX 100
 #define LT_FAULT_THRESH 5
 
+// toggle a pin on different fault conditions
+#define ENABLE_ETHROTTLE_STROBES  0 // global enable
+#define STROBE_PIN A4
+#define STROBE_ON_TPS_FAULT 1
+#define STROBE_ON_PPS_FAULT 0
+
 Throttle throttle(
   DRIVER_P,DRIVER_N,
   DRIVER_DIS,
@@ -97,6 +103,9 @@ Throttle::init(
   pinMode(driverPinN_, OUTPUT);
   pinMode(driverPinDis_, OUTPUT);
   pinMode(driverPinFS_, INPUT_PULLUP);
+#if ENABLE_ETHROTTLE_STROBES
+    pinMode(STROBE_PIN, OUTPUT);
+#endif
 
   enableThrottle();
   analogWrite(driverPinP_,0);
@@ -363,6 +372,10 @@ Throttle::doPedal()
 
     // fault filtering logic
     const bool faulted = abs(ppsDelta) >= ppsCompareThresh_;
+#if ENABLE_ETHROTTLE_STROBES && STROBE_ON_PPS_FAULT
+      digitalWrite(STROBE_PIN, faulted);
+      digitalWrite(STROBE_PIN, 0);
+#endif
     outVars_->ppsCompFaultCount += faulted;
     const ModeWithTransition mwt = ppsFaultFilter_.process(faulted);
     if (mwt.mode == FaultMode_E::eFM_LongTerm)
@@ -431,6 +444,10 @@ Throttle::doThrottle()
 
     // fault filtering logic
     const bool faulted = abs(tpsDelta) >= tpsCompareThresh_;
+#if ENABLE_ETHROTTLE_STROBES && STROBE_ON_TPS_FAULT
+      digitalWrite(STROBE_PIN, faulted);
+      digitalWrite(STROBE_PIN, 0);
+#endif
     outVars_->tpsCompFaultCount += faulted;
     const ModeWithTransition mwt = tpsFaultFilter_.process(faulted);
     if (mwt.mode == FaultMode_E::eFM_LongTerm)
