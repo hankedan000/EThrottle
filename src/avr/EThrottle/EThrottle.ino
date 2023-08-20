@@ -76,6 +76,12 @@ void loop() {
   canLoop();
   throttle.run();
 
+  // update ADC status
+  outPC.adcStatus.schedIdx = adc::getSchedIdx();
+  outPC.adcStatus.state = adc::getState();
+  outPC.adcStatus.convCycles = adc::conversionCycles;
+  outPC.adcStatus.adcsra = ADCSRA;
+
   // update loop time register
   uint16_t loopTimeUs = micros() - loopStartTimeUs;
   EndianUtils::setBE(outPC.loopTimeUs, loopTimeUs);

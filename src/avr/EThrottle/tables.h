@@ -44,8 +44,16 @@ struct OutPC_T
   // contents of MCUSR (only valid if using mcp-can-boot bootloader)
   uint8_t mcusr;                    // offset 5
   uint8_t reserved0[4];             // offset 6
-  Throttle::OutVars throttleOutVars;// offset 10 (29bytes)
-  uint8_t reserved1[87];
+  Throttle::OutVars throttleOutVars;// offset 10 (31bytes)
+  struct ADC_Status_T
+  {
+    uint8_t schedIdx   : 4;
+    uint8_t state      : 2;
+    uint8_t rsvd0      : 2;
+    uint8_t convCycles : 8;
+    uint8_t adcsra     : 8;
+  } adcStatus;                      // offset 41 (3bytes)
+  uint8_t reserved1[84];            // offset 44
 };
 static_assert(sizeof(OutPC_T) == PAGE0_SIZE);
 

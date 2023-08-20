@@ -31,6 +31,14 @@ namespace adc
     eTM_ISR_Tmr0_OCB = 21
   };
 
+  enum ADC_State_E
+  {
+    eADCS_Stopped = 0,
+    eADCS_Started = 1,
+    eADCS_PendingTrigger = 2,
+    eADCS_Complete = 3
+  };
+
   struct CtrlEntry
   {
     CtrlEntry()
@@ -74,5 +82,11 @@ namespace adc
 
   void
   stop();
+
+  uint8_t
+  getSchedIdx();
+
+  ADC_State_E
+  getState();
 
 }
