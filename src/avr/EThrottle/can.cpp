@@ -165,8 +165,8 @@ EThrottleCAN::applyCanFilters(
 
 void
 EThrottleCAN::handleStandard(
-    const uint32_t &id,
-    const uint8_t &length,
+    const uint32_t id,
+    const uint8_t length,
     uint8_t *data)
 {
   const uint8_t msgId = id - ecuRtBcastBaseId;
@@ -196,9 +196,9 @@ EThrottleCAN::handleStandard(
 
 bool
 EThrottleCAN::writeToTable(
-  const uint8_t &table,
-  const uint16_t &offset,
-  const uint8_t &len,
+  const uint8_t table,
+  const uint16_t offset,
+  const uint8_t len,
   const uint8_t *data)
 {
   // intercept table writes to the command buffer, and handle them directly
