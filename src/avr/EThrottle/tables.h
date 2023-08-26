@@ -6,7 +6,6 @@
 #include "MegaCAN_ExtDevice.h"
 #include "MegaCAN_RT_BroadcastHelper.h"
 #include "Throttle.h"
-#include "uart.h"
 
 #define PAGE0_SIZE 128
 #define PAGE1_SIZE 128
@@ -126,14 +125,20 @@ static_assert(sizeof(Page2_T) <= MEGA_CAN_EXT_MAX_FLASH_TABLE_SIZE);
 
 extern OutPC_T outPC;
 
-extern char serBuff[20];
+enum TableId_E {
+  eTI_OUT_PC = 0,
+  eTI_CFG_PAGE1 = 1,
+  eTI_CFG_PAGE2 = 2,
+  eTI_UART_CMD = 3
+};
 
 #define NUM_TABLES 4
 static const MegaCAN::TableDescriptor_t TABLES[NUM_TABLES] = {
   {&outPC,            sizeof(OutPC_T),     MegaCAN::TableType_E::eRam  , -1                }, // table 0
   {MegaCAN::tempPage, sizeof(Page1_T),     MegaCAN::TableType_E::eFlash, PAGE1_FLASH_OFFSET}, // table 1
   {MegaCAN::tempPage, sizeof(Page2_T),     MegaCAN::TableType_E::eFlash, PAGE2_FLASH_OFFSET}, // table 2
-  {uartCmdBuff,       sizeof(uartCmdBuff), MegaCAN::TableType_E::eRam  , -1                }  // table 3
+  // we handle the cmds directly from CAN msg, so no need to provide a valid buffer
+  {nullptr,           8,                   MegaCAN::TableType_E::eRam  , -1                }  // table 3 (cmd table)
 };
 
 // accessor utilities

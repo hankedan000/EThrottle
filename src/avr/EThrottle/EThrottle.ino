@@ -9,7 +9,6 @@
 #include "EndianUtils.h"
 #include <logging.h>
 #include "Throttle.h"
-#include "uart.h"
 
 // analog inputs
 #define CTRL_BUTN A4
@@ -72,7 +71,6 @@ void loop() {
   wdt_reset();// throw watchdog a bone
   uint32_t loopStartTimeUs = micros();
 
-  doUart();
   canLoop();
   throttle.run();
 

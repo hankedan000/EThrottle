@@ -1,10 +1,12 @@
-#include "FlashUtils.h"
-#include "Arduino.h"
-#include "can.h"
+#include "MegaCAN_ExtDevice.h"
 
+#include "Arduino.h"
+#include <avr/wdt.h>
+#include "can.h"
+#include "config.h"
 #include "ecu_vars.h"
+#include "FlashUtils.h"
 #include "MSG_defn.h"
-#include "uart.h"
 
 DECL_MEGA_CAN_REV("EThrottle");
 DECL_MEGA_CAN_SIG("OpenGPIO-1.0.0     ");
@@ -44,24 +46,11 @@ void
 onTableBurned(
   uint8_t table)
 {
-  if (table == 1)
+  if (table == TableId_E::eTI_CFG_PAGE1)
   {
     loadThrottlePID_FromFlash(throttle);
     loadSensorCalibrationsFromFlash(throttle);
     loadSensorSetupFromFlash(throttle);
-  }
-}
-
-void
-onTableWritten(
-  uint8_t table,
-	uint16_t /*offset*/,
-	uint8_t len,
-	const uint8_t * /*data*/)
-{
-  if (table == 3)
-  {
-    pushedUartCmdBytes(len);
   }
 }
 
@@ -77,7 +66,6 @@ canSetup()
   // MCP2515 configuration
   canDev.init();
   canDev.setOnTableBurnedCallback(onTableBurned);
-  canDev.setOnTableWrittenCallback(onTableWritten);
   pinMode(CAN_INT, INPUT_PULLUP);// Configuring pin for CAN interrupt input
   attachInterrupt(digitalPinToInterrupt(CAN_INT), canISR, LOW);
 
@@ -105,6 +93,29 @@ canLoop()
   // update CAN status registers
   outPC.canStatus = canDev.getCAN_Status();
   outPC.canErrorCount = canDev.getLogicErrorCount();
+}
+
+void
+processCMD(
+  const uint8_t *cmd,
+  uint8_t len)
+{
+  if (len < 1) {
+    return;
+  }
+
+  switch ((char)(cmd[0])) {
+    case 'r':
+#if WATCHDOG_SUPPORT
+      // soft reset MCU via watchdog timeout
+      cli();
+      wdt_enable(WDTO_15MS);
+      while(1){}
+#else
+      WARN("cant reset. WATCHDOG is OFF");
+#endif
+      break;
+  }
 }
 
 EThrottleCAN::EThrottleCAN(
@@ -181,4 +192,24 @@ EThrottleCAN::handleStandard(
       break;
     }
   }// switch
+}
+
+bool
+EThrottleCAN::writeToTable(
+  const uint8_t &table,
+  const uint16_t &offset,
+  const uint8_t &len,
+  const uint8_t *data)
+{
+  // intercept table writes to the command buffer, and handle them directly
+  if (table == TableId_E::eTI_UART_CMD)
+  {
+    processCMD(data, len);
+    return true;
+  }
+  else
+  {
+    // defer call to base class
+    return MegaCAN::ExtDevice::writeToTable(table, offset, len, data);
+  }
 }
