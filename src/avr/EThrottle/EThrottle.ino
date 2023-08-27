@@ -7,7 +7,7 @@
 #include "can.h"
 #include "config.h"
 #include "EndianUtils.h"
-#include <logging.h>
+#include <logging_impl_lite.h>
 #include "Throttle.h"
 
 // analog inputs
