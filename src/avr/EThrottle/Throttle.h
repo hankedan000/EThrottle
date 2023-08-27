@@ -59,7 +59,8 @@ public:
     uint8_t throttleEnabled    : 1;
     uint8_t motorEnabled       : 1;
     uint8_t motorDriverFault   : 1;// over current or over temp.
-    uint8_t reserved           : 2;
+    uint8_t adcStalled         : 1;
+    uint8_t reserved           : 1;
   };
 
   enum FaultClearCmd_E

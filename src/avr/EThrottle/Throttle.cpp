@@ -80,6 +80,7 @@ Throttle::Throttle(
   status_.throttleEnabled = 0;
   status_.motorEnabled = 0;
   status_.motorDriverFault = 0;
+  status_.adcStalled = 0;
 
   // zero out coefficients to be safe
   updatePID_Coeffs(0.0,0.0,0.0);
@@ -526,6 +527,19 @@ Throttle::doThrottle()
     tpsTarget_ = 0;
     motorOut_ = 0;
     motorCurrent_mA_ = 0;
+  }
+
+  // make user ADC conversions are running correctly
+  if (newCycle)
+  {
+    static uint16_t prevADC_Cycles = 0;
+    const uint16_t deltaCycles = adc::conversionCycles - prevADC_Cycles;
+    prevADC_Cycles = adc::conversionCycles;
+    if (deltaCycles == 0)
+    {
+      status_.adcStalled = 1;
+      disableMotor();
+    }
   }
 
   // update motor driver fault status
