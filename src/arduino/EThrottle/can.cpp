@@ -1,12 +1,12 @@
-#include "MegaCAN_ExtDevice.h"
-
-#include "Arduino.h"
-#include <avr/wdt.h>
 #include "can.h"
+
+#include <Arduino.h>
+#include <avr/wdt.h>
 #include "config.h"
 #include "ecu_vars.h"
-#include "FlashUtils.h"
-#include "MSG_defn.h"
+#include <FlashUtils.h>
+#include <MegaCAN_ExtDevice.h>
+#include <MSG_defn.h>
 
 DECL_MEGA_CAN_REV("EThrottle");
 DECL_MEGA_CAN_SIG("OpenGPIO-1.0.0     ");

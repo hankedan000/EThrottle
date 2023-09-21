@@ -3,8 +3,8 @@
 
 #include <EEPROM.h>
 #include <stdint.h>
-#include "MegaCAN_ExtDevice.h"
-#include "MegaCAN_RT_BroadcastHelper.h"
+#include <MegaCAN_ExtDevice.h>
+#include <MegaCAN_RT_BroadcastHelper.h>
 #include "Throttle.h"
 
 #define PAGE0_SIZE 128

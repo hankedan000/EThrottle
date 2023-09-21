@@ -1,6 +1,6 @@
 #pragma once
 
-#include "MegaCAN_ExtDevice.h"
+#include <MegaCAN_ExtDevice.h>
 #include "tables.h"
 
 #define CAN_CS  10

@@ -1,6 +1,6 @@
-#include "Arduino.h"
 #include "adc_ctrl.h"
 
+#include <Arduino.h>
 #include <avr/interrupt.h>
 
 namespace adc
