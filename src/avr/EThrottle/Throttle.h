@@ -1,6 +1,7 @@
 #ifndef THROTTLE_H_
 #define THROTTLE_H_
 
+#include "FaultFilter.h"
 #include <PID_v1.h>
 #include <stdint.h>
 #include "pidautotuner.h"
@@ -58,7 +59,8 @@ public:
     uint8_t throttleEnabled    : 1;
     uint8_t motorEnabled       : 1;
     uint8_t motorDriverFault   : 1;// over current or over temp.
-    uint8_t reserved           : 2;
+    uint8_t adcStalled         : 1;
+    uint8_t reserved           : 1;
   };
 
   enum FaultClearCmd_E
@@ -132,6 +134,11 @@ public:
     // ADC readings from motor driver feedback pin
     // range: [0 to 1023]
     uint16_t driverFB;
+
+    // running count of how many sensor comparison faults there have been.
+    // not that these counters wrap when they overflow.
+    uint8_t ppsCompFaultCount;
+    uint8_t tpsCompFaultCount;
   };
 
 public:
@@ -365,6 +372,9 @@ private:
     // delta in the sensor comparison logic. usually set to 50 or so.
     uint16_t ppsCompareThresh_;
     uint16_t tpsCompareThresh_;
+
+    FaultFilter ppsFaultFilter_;
+    FaultFilter tpsFaultFilter_;
 
 };
 

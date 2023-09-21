@@ -7,6 +7,16 @@
 #include "EndianUtils.h"
 #include "FlashUtils.h"
 
+#define ST_FAULT_TIMEOUT_MAX 10
+#define LT_FAULT_TIMEOUT_MAX 100
+#define LT_FAULT_THRESH 5
+
+// toggle a pin on different fault conditions
+#define ENABLE_ETHROTTLE_STROBES  0 // global enable
+#define STROBE_PIN A4
+#define STROBE_ON_TPS_FAULT 1
+#define STROBE_ON_PPS_FAULT 0
+
 Throttle throttle(
   DRIVER_P,DRIVER_N,
   DRIVER_DIS,
@@ -70,6 +80,7 @@ Throttle::Throttle(
   status_.throttleEnabled = 0;
   status_.motorEnabled = 0;
   status_.motorDriverFault = 0;
+  status_.adcStalled = 0;
 
   // zero out coefficients to be safe
   updatePID_Coeffs(0.0,0.0,0.0);
@@ -93,6 +104,9 @@ Throttle::init(
   pinMode(driverPinN_, OUTPUT);
   pinMode(driverPinDis_, OUTPUT);
   pinMode(driverPinFS_, INPUT_PULLUP);
+#if ENABLE_ETHROTTLE_STROBES
+    pinMode(STROBE_PIN, OUTPUT);
+#endif
 
   enableThrottle();
   analogWrite(driverPinP_,0);
@@ -214,10 +228,12 @@ Throttle::clearFault(
   if (clrAll || cmd == FaultClearCmd_E::eFCC_PPS)
   {
     status_.ppsComparisonFault = 0;
+    ppsFaultFilter_.reset();
   }
   if (clrAll || cmd == FaultClearCmd_E::eFCC_TPS)
   {
     status_.tpsComparisonFault = 0;
+    tpsFaultFilter_.reset();
   }
   if ((clrAll || cmd == FaultClearCmd_E::eFCC_Driver) && status_.motorDriverFault)
   {
@@ -327,23 +343,11 @@ Throttle::doPedal()
   ppsB_ = adc::ppsB.value;
 
   // normalize PPS readings based on calibrated min/max values
-  int16_t ppsA_Norm = map(ppsA_, ppsCalA_.min, ppsCalA_.max, 0, 10000);
-  int16_t ppsB_Norm = map(ppsB_, ppsCalB_.min, ppsCalB_.max, 0, 10000);
+  const int16_t ppsA_Norm = map(ppsA_, ppsCalA_.min, ppsCalA_.max, 0, 10000);
+  const int16_t ppsB_Norm = map(ppsB_, ppsCalB_.min, ppsCalB_.max, 0, 10000);
 
   DEBUG("ppsA: %d, ppsB: %d", ppsA_, ppsB_);
   DEBUG("ppsA_Norm: %d, ppsB_Norm: %d", ppsA_Norm, ppsB_Norm);
-
-  // Compute PPS percentage based on prefered sensor's normalized
-  // percentage. The tuner should set the prefered sensor (A or B)
-  // based on which one gives readings over the full range of the
-  // accelerator pedal.
-  // Note: pps_ can get set to 0% if PPS safety checks fail.
-  pps_ = (sensorSetup_.preferPPS_A ? ppsA_Norm : ppsB_Norm);
-  if (pps_ < 0) {
-    pps_ = 0;
-  } else if (pps_ > 10000) {
-    pps_ = 10000;
-  }
 
   // safety check the raw ADC values
   if (sensorSetup_.comparePPS)
@@ -359,6 +363,7 @@ Throttle::doPedal()
       ppsCompDesc_.nBins,
       preferADC);
     const int16_t ppsDelta = otherADC - otherExpected;
+    EndianUtils::setBE(outVars_->ppsSafetyDelta, ppsDelta);
     DEBUG(
       "preferADC = %d, otherADC = %d, otherExpected = %d, ppsDelta = %d",
       preferADC,
@@ -366,16 +371,39 @@ Throttle::doPedal()
       otherExpected,
       ppsDelta);
 
-    if (outVars_)
-    {
-      EndianUtils::setBE(outVars_->ppsSafetyDelta, ppsDelta);
-    }
-
-    if (abs(ppsDelta) >= ppsCompareThresh_)
+    // fault filtering logic
+    const bool faulted = abs(ppsDelta) >= ppsCompareThresh_;
+#if ENABLE_ETHROTTLE_STROBES && STROBE_ON_PPS_FAULT
+      digitalWrite(STROBE_PIN, faulted);
+      digitalWrite(STROBE_PIN, 0);
+#endif
+    outVars_->ppsCompFaultCount += faulted;
+    const ModeWithTransition mwt = ppsFaultFilter_.process(faulted);
+    if (mwt.mode == FaultMode_E::eFM_LongTerm)
     {
       pps_ = 0;// default to 0% pedal position to be safe
-      // TODO add error counter?
       status_.ppsComparisonFault = 1;
+    }
+    else if (mwt.mode == FaultMode_E::eFM_Nominal)
+    {
+      status_.ppsComparisonFault = 0;
+    }
+  }
+
+  // compute final pps values based on optional fault filtering logic
+  // Note: short term fault will preserve previous good PPS value
+  if (status_.ppsComparisonFault == 0)
+  {
+    // Compute PPS percentage based on prefered sensor's normalized
+    // percentage. The tuner should set the prefered sensor (A or B)
+    // based on which one gives readings over the full range of the
+    // accelerator pedal.
+    // Note: pps_ can get set to 0% if PPS safety checks fail.
+    pps_ = (sensorSetup_.preferPPS_A ? ppsA_Norm : ppsB_Norm);
+    if (pps_ < 0) {
+      pps_ = 0;
+    } else if (pps_ > 10000) {
+      pps_ = 10000;
     }
   }
 
@@ -389,16 +417,9 @@ Throttle::doThrottle()
   tpsB_ = adc::tpsB.value;
 
   // normalize TPS readings based on calibrated min/max values
-  int16_t tpsA_Norm = map(tpsA_, tpsCalA_.min, tpsCalA_.max, 0, 10000);
-  int16_t tpsB_Norm = map(tpsB_, tpsCalB_.min, tpsCalB_.max, 0, 10000);
+  const int16_t tpsA_Norm = map(tpsA_, tpsCalA_.min, tpsCalA_.max, 0, 10000);
+  const int16_t tpsB_Norm = map(tpsB_, tpsCalB_.min, tpsCalB_.max, 0, 10000);
   DEBUG("tpsA: %d, tpsB: %d", tpsA_Norm, tpsB_Norm);
-
-  // Compute TPS percentage based on prefered sensor's normalized
-  // percentage. The tuner should set the prefered sensor (A or B)
-  // based on which one gives readings over the full range of the
-  // throttle blade.
-  // Note: tps_ can get set to 0% if TPS safety checks fail.
-  tps_ = (sensorSetup_.preferTPS_A ? tpsA_Norm : tpsB_Norm);
 
   // safety check the raw ADC values
   if (sensorSetup_.compareTPS)
@@ -414,6 +435,7 @@ Throttle::doThrottle()
       tpsCompDesc_.nBins,
       preferADC);
     const int16_t tpsDelta = otherADC - otherExpected;
+    EndianUtils::setBE(outVars_->tpsSafetyDelta, tpsDelta);
     DEBUG(
       "preferADC = %d, otherADC = %d, otherExpected = %d, tpsDelta = %d",
       preferADC,
@@ -421,21 +443,36 @@ Throttle::doThrottle()
       otherExpected,
       tpsDelta);
 
-    if (outVars_)
+    // fault filtering logic
+    const bool faulted = abs(tpsDelta) >= tpsCompareThresh_;
+#if ENABLE_ETHROTTLE_STROBES && STROBE_ON_TPS_FAULT
+      digitalWrite(STROBE_PIN, faulted);
+      digitalWrite(STROBE_PIN, 0);
+#endif
+    outVars_->tpsCompFaultCount += faulted;
+    const ModeWithTransition mwt = tpsFaultFilter_.process(faulted);
+    if (mwt.mode == FaultMode_E::eFM_LongTerm)
     {
-      EndianUtils::setBE(outVars_->tpsSafetyDelta, tpsDelta);
-    }
-
-    if (abs(tpsDelta) >= tpsCompareThresh_)
-    {
-      // Best to disable motor since we have unreliable position info for the
-      // throttle blade. This assumes the throttle has a return spring that will
-      // close the throttle blade when the motor is unpowered.
       disableMotor();
-      tps_ = 0;
-      // TODO add error counter?
       status_.tpsComparisonFault = 1;
     }
+    else if (mwt.mode == FaultMode_E::eFM_Nominal && mwt.transition)
+    {
+      enableMotor();
+      status_.tpsComparisonFault = 0;
+    }
+  }
+
+  // compute final tps values based on if we're within fault
+  // Note: short term fault will preserve previous good TPS value
+  if (status_.tpsComparisonFault == 0)
+  {
+    // Compute TPS percentage based on prefered sensor's normalized
+    // percentage. The tuner should set the prefered sensor (A or B)
+    // based on which one gives readings over the full range of the
+    // throttle blade.
+    // Note: tps_ can get set to 0% if TPS safety checks fail.
+    tps_ = (sensorSetup_.preferTPS_A ? tpsA_Norm : tpsB_Norm);
   }
 
   // update PID controller
@@ -490,6 +527,19 @@ Throttle::doThrottle()
     tpsTarget_ = 0;
     motorOut_ = 0;
     motorCurrent_mA_ = 0;
+  }
+
+  // make user ADC conversions are running correctly
+  if (newCycle)
+  {
+    static uint16_t prevADC_Cycles = 0;
+    const uint16_t deltaCycles = adc::conversionCycles - prevADC_Cycles;
+    prevADC_Cycles = adc::conversionCycles;
+    if (deltaCycles == 0)
+    {
+      status_.adcStalled = 1;
+      disableMotor();
+    }
   }
 
   // update motor driver fault status

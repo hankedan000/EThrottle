@@ -7,9 +7,8 @@
 #include "can.h"
 #include "config.h"
 #include "EndianUtils.h"
-#include <logging.h>
+#include <logging_impl_lite.h>
 #include "Throttle.h"
-#include "uart.h"
 
 // analog inputs
 #define CTRL_BUTN A4
@@ -72,9 +71,14 @@ void loop() {
   wdt_reset();// throw watchdog a bone
   uint32_t loopStartTimeUs = micros();
 
-  doUart();
   canLoop();
   throttle.run();
+
+  // update ADC status
+  outPC.adcStatus.schedIdx = adc::getSchedIdx();
+  outPC.adcStatus.state = adc::getState();
+  outPC.adcStatus.convCycles = adc::conversionCycles;
+  outPC.adcStatus.adcsra = ADCSRA;
 
   // update loop time register
   uint16_t loopTimeUs = micros() - loopStartTimeUs;
