@@ -4,8 +4,8 @@
 #include <logging.h>
 
 #include "adc_ctrl.h"
-#include "EndianUtils.h"
-#include "FlashUtils.h"
+#include <EndianUtils.h>
+#include <FlashUtils.h>
 
 #define ST_FAULT_TIMEOUT_MAX 10
 #define LT_FAULT_TIMEOUT_MAX 100

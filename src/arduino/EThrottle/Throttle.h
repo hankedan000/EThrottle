@@ -4,7 +4,7 @@
 #include "FaultFilter.h"
 #include <PID_v1.h>
 #include <stdint.h>
-#include "pidautotuner.h"
+#include <pidautotuner.h>
 
 // define this if the motor driver is an h-bridge variant. this
 // enables us to reverse the throttle motor polarity to close
