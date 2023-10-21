@@ -1,0 +1,523 @@
+; INI date: 9:35am, Jun 01, 2017
+;------------------------------------------------------------------------------
+; Units - "unset" to change to metric units in TunerStudioMS (to match values returned
+; from MShift/GPIO controller when metric units are chosen).
+; defaults are imperial units
+#unset CELSIUS
+#unset SI_LENGTHS
+; otherwise METRIC units are used
+
+; unset CAM_COMMANDS if you want to interface to GPIO directly through serial
+; otherwise, this will interface through CAN pass-through
+#set CAN_COMMANDS
+
+;----------------------------------------------------------------------------
+
+[MegaTune]
+   MTversion      = 2.25 ; MegaTune itself; needs to match exec version.
+
+#if CAN_COMMANDS
+   versionInfo    = "r\$tsCanId\x0e\x00\x00\x00\x3c"  ; Title bar, this is the code version.
+   queryCommand   = "r\$tsCanId\x0f\x00\x00\x00\x14"  ; 20 bytes from table 15. Verify against signature.
+#else
+   versionInfo    = "S"  ; Put this in the title bar.
+   queryCommand   = "Q"  ; Verify against signature.
+#endif
+   signature      = "OpenGPIO-1.0.0     " ; EThrottle sends a null at 20th byte.
+                   ; 123456789.123456789.
+
+#  set LOAD_KPA
+
+;----------------------------------------------------------------------------
+
+
+[ReferenceTables]
+
+    tableWriteCommand   = "t" ;
+
+    referenceTable = canOutmsgBurner, "Configure CAN Outmsg"
+      ;topicHelp = "http://www.megamanual.com/mt29.htm#outmsg"
+        tableIdentifier = 010, "outmsg Table"       ; id in octal, 010 = table 8
+        adcCount  = 1024  ; length of the table
+        bytesPerAdc   = 1   ; using bytes
+        scale   = 1 ; scale before sending to controller
+        ;tableGenerator = Generator Type,     Label, xUnits, yUnits,  xLow, xHi,  yLow, yHi ; lows and highs are just default values, they will be user editable
+      ;tableGenerator = linearGenerator, "Custom Linear WB", "Volts","AFR",    1,   4,   9.7,  18.7
+      solutionsLabel  = "CAN Outmsg"
+      solution  = "CAN Outmsg",   { table(adcValue, "canOutmsg.inc") }
+
+;-------------------------------------------------------------------------------
+
+[Constants]
+
+   ;----------------------------------------------------------------------------
+   ; Constants Definition
+   ; --------------------
+   ;
+   ; Scalar Values
+   ; -------------
+   ; The scaling and translation values are used as follows:
+   ;    msValue   = userValue / scale - translate
+   ;    userValue = (msValue + translate) * scale
+   ;
+   ;
+   ; Array Values
+   ; ------------
+   ; Arrays are specified just like scalars, except that they have a "shape"
+   ; entry in the fourth parameter.  The shape allows you to define lists or
+   ; tables, for example [8] defines a list with eight values and [2x4] defines
+   ; a table with eight values (two rows and four columns).  Tables may be
+   ; stored in either "X-" or "Y-order."  X-order means that memory is laid
+   ; out as follows.
+   ;
+   ;     [x1,y1] [x2,y1]...[xn,y1] [x1,y2]...
+   ;
+   ; Y-order would be
+   ;
+   ;     [x1,y1] [x1,y2]...[x1,yn] [x2,y1]...
+   ;
+   ; To use the TableEditor, you must define two lists and a table, and
+   ; the lengths of the lists must correspond to the shape of the table.
+   ;
+   ; Bit Fields
+   ; ----------
+   ; Bits are numbered 0-7, the rightmost being bit zero.  The basic
+   ; data word that stores bit fields must be unsigned.
+   ;
+   ; You need NOT supply the correct number of labels matching the
+   ; number of bits you've specified (one bit requires 2 values, two
+   ; bits requires 4 values and so on).  If you neglect to supply enough
+   ; labels, they will be synthesized using the sequence "1", "2" and so
+   ; on based upon their position in the sequence (the cltType and matType
+   ; will end up with identical lists).
+   ;
+   ;----------------------------------------------------------------------------
+
+   pageActivationDelay = 250 ; Milliseconds delay after burn command.
+   blockReadTimeout    = 180 ; Milliseconds total timeout for reading page.
+
+
+
+; MUST set nPages *before* blocking factor, or will get "turboBaud" error
+
+   endianness          = big
+   nPages              = %%N_PAGES%%
+; page size must be divisible by 8 for TS CAN pass-through compatibility
+   ; Note: these are lists of commands for each page defined
+%%PAGE_COMMANDS%%
+
+; The commands sent to the device are formatted "command\CAN_ID\table_ID\table offset\num.bytes"
+; i.e. cmd\CAN_ID\Table_ID\Table_offset\Num_Bytes
+; where:
+; cmd => ascii 'r' (x72): Read and send back RAM user input parameters from offset location, others commands are:
+;              'a' (x61): send back All real time ram output variables
+;              'w' (x77): receive new ram input data and Write into offset location;
+;              'e' (x65): same as 'w', but verify by Echoing back values, up to sizeof(txbuf).
+;              'y' (x79): verify that a flash data block matches a corresponding ram data block
+;              'b' (x62): Burn a block of ram input values into flash;
+;              't' (x74): update a flash Table with following serial data
+;              '!' (x21): start receiving reinit/reboot command
+;              'c' (x63): send back seconds to test Comms
+;              'Q' (x51): send code revision number
+;              'S' (x53): send program title
+;              'k' (x68): request checksum.
+; CAN_ID is the controller's unique ID number (from 0 to 15) - 1 byte
+; %2i is the id/table number - 1 byte
+; %2o is the table offset - 2 bytes
+; %2c is the number of bytes to be read/written - 2 bytes
+; %v is the byte to be sent/written - 1 bytes
+; so there are 7 bytes to a message
+
+; Example: from TS comm log
+; Time: 0:33.314: SENT, 7 bytes
+; x72 x01 x07 x00 x38 x00 x08
+; is in format ; or r%2i%2o%2c, and
+; means:
+; x72 => ascii 'r' (character 72): Read and send back RAM user input parameters from offset location,
+; x01 => from controller using can_id=1,
+; x07 => values in table=7 (outpc),
+; x00 & x38 => at offset 38h (56 decimal) - need two bytes since we may require an offset greater than 255,
+; x00 & x08 => read and send 8 bytes
+
+;   C Type                 Bits            Range                    TunerStudio INI Designation
+;   ------                 ----            -----                    ---------------------------
+
+; - char (=signed char)     8              -128 to 127               S08 (one byte offset each)
+; - unsigned char           8                 0 to 255               U08
+
+; ...............................................................................................
+
+; - int  (=signed int)     16          -32768 to 32767               S16 (two byte offset each)
+;   (= short)
+
+; - unsigned int           16               0 to 65535               U16
+;   (=unsigned short int)
+
+; ................................................................................................
+
+; - long  (=signed long)   32          -2�� to 2�� - 1               S32 (four byte offset each)
+;   (=long int)
+
+; - unsigned long          32             0 to 2�� - 1               U32
+;   (=unsigned long int)
+
+; ................................................................................................
+
+; Note that variables are signed unless designated otherwise.
+
+; MUST set nPages *before* blocking factor, or will get "turboBaud" error
+#if CAN_COMMANDS
+   blockingFactor = 64
+#endif
+
+; For the most part, the parameters below have the same names as in the source code.
+; This isn't required (since it is the actual memory addresses that are used),
+; but it does help when trying to understand and discuss the source code.
+
+%%PAGES%%
+
+; -----------------------------------------------------------
+[ConstantsExtensions]
+    requiresPowerCycle = msqRtBcastBaseId
+
+; -----------------------------------------------------------
+[SettingContextHelp]
+    sensorSetup_bits_comparePPS = "Enable/disable safety feature that compares redundant PPS sensors A and B.\nAfter enabling this feature, config the PPS comparison curve."
+    sensorSetup_bits_preferPPS_A = "Set this to the PPS sensor that provides values over the full range of the accelrator pedal.\nSome pedals will hit min/max ADC readings earlier than expected."
+    sensorSetup_bits_compareTPS = "Enable/disable safety feature that compares redundant TPS sensors A and B.\nAfter enabling this feature, config the TPS comparison curve."
+    sensorSetup_bits_preferTPS_A = "Set this to the TPS sensor that provides values over the full range of the throttle blade.\nSome throttles will hit min/max ADC readings earlier than expected."
+    ppsCompareThresh = "Threshold driving the PPS A/B comparison logic.\nThe algorithm will lookup an expected ADC reading for the 'secondary' sensor, given the prefered\n'primary' sensor's ADC. If the expected value differs the actual value by more than this threshold, then\na PPS sensor fault will be flagged, and the PPS position will default to 0%."
+    tpsCompareThresh = "Threshold driving the TPS A/B comparison logic.\nThe algorithm will lookup an expected ADC reading for the 'secondary' sensor, given the prefered\n'primary' sensor's ADC. If the expected value differs the actual value by more than this threshold, then\na TPS sensor fault will be flagged, and the throttle motor will be disabled."
+    tpsStall = "Minimum tps value that the engine can continue to run at.\nGoing below this tps value will cause the engine to stall."
+    msqRtBcastBaseId = "megasquirt's base message identifier (decimal) for it's realtime data broadcasting feature."
+
+[Menu]
+
+   ;----------------------------------------------------------------------------
+   ;  There are five pre-defined values that may be used to define your menus.
+   ;  The first four allow access to the "standard" dialog boxes, the last one
+   ;  merely draws a separator (horizontal line) in the menu.
+   ;
+   ;     std_constants
+   ;     std_enrichments
+   ;     std_realtime
+   ;     std_warmup
+   ;     std_accel
+   ;
+   ;     std_separator
+   ;
+   ;  If you use any of the std_constants, std_enrichments or std_warmup
+   ;  editors, they may be optionally suffixed with a page number (only
+   ;  useful for multi-page code variants), which causes them to edit the
+   ;  specified page.  If you leave off the page specifier, they edit logical
+   ;  page one as specified in the Constants section.
+   ;
+   ;  There are four special menu names, which when used append to the standard
+   ;  menus of the same name instead of creating a new one.  The menu names
+   ;  are "File", "Communications", "Tools" and "Help".
+   ;
+   ;----------------------------------------------------------------------------
+
+  menuDialog = main
+      menu = "Basic/Load Settings"
+        subMenu = sensorSetup, "Sensor Setup"
+        subMenu = ppsCompareCurvePreferA, "PPS Comparison Curve (A prefered)", {(sensorSetup_bits_comparePPS) && (sensorSetup_bits_preferPPS_A == 1)}
+        subMenu = ppsCompareCurvePreferB, "PPS Comparison Curve (B prefered)", {(sensorSetup_bits_comparePPS) && (sensorSetup_bits_preferPPS_A == 0)}
+        subMenu = tpsCompareCurvePreferA, "TPS Comparison Curve (A prefered)", {(sensorSetup_bits_compareTPS) && (sensorSetup_bits_preferTPS_A == 1)}
+        subMenu = tpsCompareCurvePreferB, "TPS Comparison Curve (B prefered)", {(sensorSetup_bits_compareTPS) && (sensorSetup_bits_preferTPS_A == 0)}
+        subMenu = std_separator
+        subMenu = throttlePID_Control, "Throttle PID Control"
+        subMenu = std_separator
+        subMenu = ppsSensorCal, "PPS Sensor Calibration"
+        subMenu = tpsSensorCal, "TPS Sensor Calibration"
+        subMenu = std_separator
+        subMenu = tpsTargetCalcSummary, "TPS Target Calculation Summary"
+
+      menu = "C&AN bus/Testmodes"
+        subMenu = can_input_bcast_settings, "CAN Listening Settings"
+        subMenu = std_separator
+        subMenu = can_outpc_bcast,   "CAN Realtime Data Broadcasting"
+        subMenu = can_outpc_bcast_2, "CAN Realtime Data Broadcasting 2", {rtBcast_ctrl_bits_enabled}
+        subMenu = std_separator
+        subMenu = diagnostics, "Diagnostics"
+
+;-------------------------------------------------------------------------------
+
+[ControllerCommands]
+; commandName    = command1, command2, commandn...
+; command in standard ini format, a command name can be assigned to 1 to n commands that will be executed in order.
+;         This dos not include any resultant protocol envelope data, only the response data itself.
+
+; WARNING!! These commands bypass TunerStudio's normal memory synchronization. If these commands
+; alter mapped settings (Constant) memory in the controller, TunerStudio will have an out of sync condition 
+; and may create error messages.
+; It is expected that these commands would not typically alter any ram mapped to a Constant.
+  ;                              tableId, offsetMSB, offsetLSB, lenMSB, lenLSB, data[0], data[1], ..., data[len-1]
+  cmdDisableThrottle = "w\$tsCanId\x03\x00\x00\x00\x03\x74\x30\x00" ; uartCmd = "t0"
+  cmdEnableThrottle = "w\$tsCanId\x03\x00\x00\x00\x03\x74\x31\x00"  ; uartCmd = "t1"
+  cmdClrAllFaults = "w\$tsCanId\x03\x00\x00\x00\x03\x63\x41\x00"  ; uartCmd = "cA"
+  cmdClrDriverFault = "w\$tsCanId\x03\x00\x00\x00\x03\x63\x64\x00"  ; uartCmd = "cd"
+  cmdClrPPS_Fault = "w\$tsCanId\x03\x00\x00\x00\x03\x63\x70\x00"  ; uartCmd = "cp"
+  cmdClrTPS_Fault = "w\$tsCanId\x03\x00\x00\x00\x03\x63\x74\x00"  ; uartCmd = "ct"
+  cmdSoftReset = "w\$tsCanId\x03\x00\x00\x00\x02\x72\x00"  ; uartCmd = "r"
+
+[UserDefined]
+  dialog = sensorSafetySetup, "Sensor Safety"
+      field = "Compare PPS Sensors",  sensorSetup_bits_comparePPS
+      field = "PPS Threshold", ppsCompareThresh, {sensorSetup_bits_comparePPS}
+      field = "Compare TPS Sensors",  sensorSetup_bits_compareTPS
+      field = "TPS Threshold", tpsCompareThresh, {sensorSetup_bits_compareTPS}
+
+  dialog = sensorSetup, "General Settings", yAxis
+      field = "Prefered PPS Sensor",  sensorSetup_bits_preferPPS_A
+      field = "Prefered TPS Sensor",  sensorSetup_bits_preferTPS_A
+      panel = sensorSafetySetup
+
+  dialog = throttle_pid_coeffs, "Throttle PID Coefficients"
+      slider = "Throttle PID (Kp)",  throttleKp
+      slider = "Throttle PID (Ki)",  throttleKi
+      slider = "Throttle PID (Kd)",  throttleKd
+
+  dialog = throttlePID_Control, "", yAxis
+      liveGraph = timeThrottlePID_Graph, "PID Graph"
+        graphLine = tVars_pps
+        graphLine = tVars_tps
+        graphLine = tVars_tpsTarget
+      field = "TPS Stall", tpsStall
+      panel = throttle_pid_coeffs
+
+  dialog = ppsCalRange
+      field = "PPS A Min",  ppsCalA_min
+      field = "PPS A Max",  ppsCalA_max
+      field = "PPS B Min",  ppsCalB_min
+      field = "PPS B Max",  ppsCalB_max
+
+  dialog = ppsSensorCal, "Range Calibration", xAxis
+      panel = ppsCalRange, West
+      liveGraph = ppsGraph, "PPS A/B Graph", East
+        graphLine = tVars_ppsA, "ADC", 0, 0, auto, auto
+        graphLine = tVars_ppsB, "ADC", 0, 0, auto, auto
+
+  dialog = tpsCalRange
+      field = "TPS A Min",  tpsCalA_min
+      field = "TPS A Max",  tpsCalA_max
+      field = "TPS B Min",  tpsCalB_min
+      field = "TPS B Max",  tpsCalB_max
+
+  dialog = tpsSensorCal, "Range Calibration", xAxis
+      panel = tpsCalRange, West
+      liveGraph = tpsGraph, "TPS A/B Graph", East
+        graphLine = tVars_tpsA, "ADC", 0, 0, auto, auto
+        graphLine = tVars_tpsB, "ADC", 0, 0, auto, auto
+
+  dialog = tpsTargetCalc0, "", xAxis
+      field = "TPS Stall", tpsStall
+      gauge = tVars_idleAdderGauge
+      gauge = tVars_ppsAdderGauge
+
+  dialog = tpsTargetCalcSummary, "", yAxis
+      panel = tpsTargetCalc0
+      gauge = tVars_tpsTargetGauge
+
+  dialog = can_outpc_bcast_setting, "", yAxis
+      field = "Enable realtime data broadcasting over CAN", rtBcast_ctrl_bits_enabled
+      field = "Base message identifier (decimal)", rtBcast_baseId, {rtBcast_ctrl_bits_enabled == 1}
+      field = "Broadcasting rate", rtBcast_ctrl_bits_rate, {rtBcast_ctrl_bits_enabled == 1}
+
+  dialog = can_outpc_bcast_1, "", yAxis
+      field = "00: ADC0,ADC1,ADC2,ADC3", rtBcast_groupEnables_gp00, { rtBcast_ctrl_bits_enabled }
+      field = "01: ADC4,ADC5", rtBcast_groupEnables_gp01, { rtBcast_ctrl_bits_enabled }
+      field = "02: ", rtBcast_groupEnables_gp02, { rtBcast_ctrl_bits_enabled }
+      field = "03: ", rtBcast_groupEnables_gp03, { rtBcast_ctrl_bits_enabled }
+      field = "04: ", rtBcast_groupEnables_gp04, { rtBcast_ctrl_bits_enabled }
+      field = "05: ", rtBcast_groupEnables_gp05, { rtBcast_ctrl_bits_enabled }
+      field = "06: ", rtBcast_groupEnables_gp06, { rtBcast_ctrl_bits_enabled }
+      field = "07: ", rtBcast_groupEnables_gp07, { rtBcast_ctrl_bits_enabled }
+      field = "08: ", rtBcast_groupEnables_gp08, { rtBcast_ctrl_bits_enabled }
+      field = "09: ", rtBcast_groupEnables_gp09, { rtBcast_ctrl_bits_enabled }
+      field = "10: ", rtBcast_groupEnables_gp10, { rtBcast_ctrl_bits_enabled }
+      field = "11: ", rtBcast_groupEnables_gp11, { rtBcast_ctrl_bits_enabled }
+      field = "12: ", rtBcast_groupEnables_gp12, { rtBcast_ctrl_bits_enabled }
+      field = "13: ", rtBcast_groupEnables_gp13, { rtBcast_ctrl_bits_enabled }
+      field = "14: ", rtBcast_groupEnables_gp14, { rtBcast_ctrl_bits_enabled }
+      field = "15: ", rtBcast_groupEnables_gp15, { rtBcast_ctrl_bits_enabled }
+  
+  dialog = can_outpc_bcast_2, "CAN Realtime Data Broadcasting 2", yAxis
+      field = "16: ", rtBcast_groupEnables_gp16
+      field = "17: ", rtBcast_groupEnables_gp17
+      field = "18: ", rtBcast_groupEnables_gp18
+      field = "19: ", rtBcast_groupEnables_gp19
+      field = "20: ", rtBcast_groupEnables_gp20
+      field = "21: ", rtBcast_groupEnables_gp21
+      field = "22: ", rtBcast_groupEnables_gp22
+      field = "23: ", rtBcast_groupEnables_gp23
+      field = "24: ", rtBcast_groupEnables_gp24
+      field = "25: ", rtBcast_groupEnables_gp25
+      field = "26: ", rtBcast_groupEnables_gp26
+      field = "27: ", rtBcast_groupEnables_gp27
+      field = "28: ", rtBcast_groupEnables_gp28
+      field = "29: ", rtBcast_groupEnables_gp29
+      field = "30: ", rtBcast_groupEnables_gp30
+      field = "31: ", rtBcast_groupEnables_gp31
+
+  dialog = can_input_bcast_settings, "CAN Listening Settings", yAxis
+      field = "Megasquirt realtime base msg ID (decimal)", msqRtBcastBaseId
+  
+  dialog = can_outpc_bcast, "CAN Realtime Data Broadcasting", yAxis
+      panel = can_outpc_bcast_setting, North
+      panel = can_outpc_bcast_1, South
+
+  dialog = diagThrottleBtns, "Throttle Control", xAxis
+      commandButton = "Disable Throttle", cmdDisableThrottle, {tVars_status_throttleEnabled == 1}
+      commandButton = "Enable Throttle", cmdEnableThrottle, {tVars_status_throttleEnabled == 0}
+
+  dialog = diagMCU_CtrlBtns, "MCU Control", xAxis
+      commandButton = "Soft Reset", cmdSoftReset
+
+  dialog = diagClrFaultBtns, "Clear Faults", xAxis
+      commandButton = "Clear All Faults", cmdClrAllFaults
+      commandButton = "Clear Driver Fault", cmdClrDriverFault
+      commandButton = "Clear PPS Fault", cmdClrPPS_Fault
+      commandButton = "Clear TPS Fault", cmdClrTPS_Fault
+
+  dialog = diagnostics, "", yAxis
+      panel = diagThrottleBtns
+      panel = diagMCU_CtrlBtns
+      panel = diagClrFaultBtns
+
+;-------------------------------------------------------------------------------
+
+[CurveEditor]
+  curve = ppsCompareCurvePreferA, "PPS B vs. A Comparison Curve"
+      columnLabel = "PPS A", "PPS B" 
+      xAxis       = {adcMin}, {adcMax}, 4
+      yAxis       = {adcMin}, {adcMax}, 4
+      xBins       = ppsCompCurve_xBins, tVars_ppsA
+      yBins       = ppsCompCurve_yBins
+      gauge       = tVars_ppsB
+
+  curve = ppsCompareCurvePreferB, "PPS A vs. B Comparison Curve"
+      columnLabel = "PPS B", "PPS A" 
+      xAxis       = {adcMin}, {adcMax}, 4
+      yAxis       = {adcMin}, {adcMax}, 4
+      xBins       = ppsCompCurve_xBins, tVars_ppsB
+      yBins       = ppsCompCurve_yBins
+      gauge       = tVars_ppsA
+
+  curve = tpsCompareCurvePreferA, "TPS B vs. A Comparison Curve"
+      columnLabel = "TPS A", "TPS B" 
+      xAxis       = {adcMin}, {adcMax}, 4
+      yAxis       = {adcMin}, {adcMax}, 4
+      xBins       = tpsCompCurve_xBins, tVars_tpsA
+      yBins       = tpsCompCurve_yBins
+      gauge       = tVars_tpsB
+
+  curve = tpsCompareCurvePreferB, "TPS A vs. B Comparison Curve"
+      columnLabel = "TPS B", "TPS A" 
+      xAxis       = {adcMin}, {adcMax}, 4
+      yAxis       = {adcMin}, {adcMax}, 4
+      xBins       = tpsCompCurve_xBins, tVars_tpsB
+      yBins       = tpsCompCurve_yBins
+      gauge       = tVars_tpsA
+
+[TableEditor]
+
+[GaugeConfigurations]
+%%GAUGE_CONFIGURATIONS%%
+
+;  - Regardless of the order shown here, the gauges are listed in the TunerStudio drop-down menu in capital/upper case
+;    alphabetical order, then lower case/alphabetical order (i.e., by ASCII numbering).
+
+;-------------------------------------------------------------------------------
+
+[FrontPage]
+
+   ; Gauges are numbered left to right, top to bottom.
+   ;
+   ;    1  2  3  4
+   ;    5  6  7  8
+   gauge1 = tVars_ppsGauge
+   gauge2 = tVars_tpsGauge
+   gauge3 = tVars_motorOutGauge
+   gauge4 = tVars_motorCurrent_mAGauge
+   gauge5 = deadValueGauge
+   gauge6 = tVars_tpsTargetGauge
+   gauge7 = loopTimeUsGauge
+   gauge8 = status0_bits_currFlashTableGauge
+
+   ;----------------------------------------------------------------------------
+   ; Indicators
+   ;               expr                               off-label           on-label,           off-bg, off-fg, on-bg,  on-fg
+   indicator     = {status0_bits_needsBurn},          "Need Burn",        "Need Burn",        white,  black,  red,    black
+   indicator     = {status0_bits_flashDataLost},      "Flash Data Lost",  "Flash Data Lost",  white,  black,  red,    black
+   indicator     = {mcusr_bits_porf},                 "Power-On RST",     "Power-On RST",     white,  black,  green,  black
+   indicator     = {mcusr_bits_extrf},                "External RST",     "External RST",     white,  black,  green,  black
+   indicator     = {mcusr_bits_borf},                 "Brownout RST",     "Brownout RST",     white,  black,  red,    black
+   indicator     = {mcusr_bits_wdrf},                 "Watchdog RST",     "Watchdog RST",     white,  black,  reg,    black
+   indicator     = {tVars_status_throttleEnabled},    "THROTTLE DISABLED","THROTTLE ENABLED", red,    black,  green,  black
+   indicator     = {tVars_status_motorEnabled},       "MOTOR DISABLED",   "MOTOR ENABLED",    red,    black,  green,  black
+   indicator     = {tVars_status_ppsComparisonFault}, "PPS Comp OK",      "PPS Comp FAULT",   green,  black,  red,    black
+   indicator     = {tVars_status_tpsComparisonFault}, "TPS Comp OK",      "TPS Comp FAULT",   green,  black,  red,    black
+   indicator     = {tVars_status_motorDriverFault},   "Driver OK",        "Driver FAULT",     green,  black,  red,    black
+   indicator     = {tVars_status_adcStalled},         "ADC Running",      "ADC Stalled",      green,  black,  red,    black
+
+   ;-------------------------------------------------------------------------------
+
+[RunTime]
+;   barHysteresis = 2.5 ; Seconds
+
+;-------------------------------------------------------------------------------
+
+[Tuning]
+
+;-------------------------------------------------------------------------------
+
+[AccelerationWizard]
+; not used for trans control
+
+;-------------------------------------------------------------------------------
+
+[BurstMode]
+   getCommand       = "a\x00\x06"
+
+[OutputChannels]
+; These are from the outpc. structure in the main.c file of the source code
+; the size and format are the same as above
+%%CONSTANTS%%
+  minRT_Id   = { 0 }; min real-time data broadcast Id
+  maxRT_Id   = { 2047 }; max real-time data broadcast Id
+  seconds    = { 0 }; FIXME should provide from MCU. needed by TunerStudio's "PowerCycle Monitor"
+
+  ochBlockSize     = 128 ; change this if adding extra data to outpc
+#if CAN_COMMANDS
+;full version that works anywhere
+   ochGetCommand    = "r\$tsCanId\x00%2o%2c"; read from table 0
+#else
+; fast get via serial
+   ochGetCommand       = "A"
+#endif
+
+%%OUT_PC%%
+
+;-------------------------------------------------------------------------------
+;--  The entries are saved in the datalog file in the order in which they     --
+;--  appear in the list below.                                                --
+;--                                                                           --
+;--   Channel - Case sensitive name of output channel to be logged.           --
+;--   Label   - String written to header line of log.                         --
+;--   Type    - Data type of output, converted before writing.                --
+;--   Format  - C-style output format of data.                                --
+
+[Datalog]
+   ;       Channel            Label          Type    Format
+   ;       --------------     ----------     -----   ------
+   entry = tVars_tps,               "TPS",         float,  "%.2f"
+   entry = tVars_tpsA,              "TPSA",        int,    "%d"
+   entry = tVars_tpsB,              "TPSB",        int,    "%d"
+   entry = tVars_pps,               "PPS",         float,  "%.2f"
+   entry = tVars_ppsA,              "PPSA",        int,    "%d"
+   entry = tVars_ppsB,              "PPSB",        int,    "%d"
+   entry = tVars_tpsTarget,         "TPS Target",  float,  "%.2f"
+   entry = tVars_motorOut,          "Motor Out",   int,    "%d"
+   entry = tVars_idleAdder,         "Idle Adder",  float,  "%.2f"
+   entry = tVars_ppsAdder,          "PPS Adder",   float,  "%.2f"
