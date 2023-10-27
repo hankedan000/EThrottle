@@ -7,6 +7,7 @@
 #include <FlashUtils.h>
 #include <MegaCAN_ExtDevice.h>
 #include <MSG_defn.h>
+#include "Throttle.h"
 
 DECL_MEGA_CAN_REV("EThrottle");
 DECL_MEGA_CAN_SIG("OpenGPIO-1.0.0     ");
@@ -69,7 +70,7 @@ canSetup()
   pinMode(CAN_INT, INPUT_PULLUP);// Configuring pin for CAN interrupt input
   attachInterrupt(digitalPinToInterrupt(CAN_INT), canISR, LOW);
 
-  ecuRtBcastBaseId = FlashUtils::flashRead_BE<uint16_t>(PAGE1_FIELD_OFFSET(msqRtBcastBaseId));
+  ecuRtBcastBaseId = FlashUtils::flashRead_BE<uint16_t>(FIELD_OFFSET_CFG_PAGE1(msqRtBcastBaseId));
 
   sei();// enable interrupts
 }

@@ -23,7 +23,7 @@
                 // 12 CAN MISO
                 // 13 CAN SCK
 
-Throttle::OutVars *throttleVars = &outPC.throttleOutVars;
+ThrottleOutVars_T *throttleVars = &outPC.tVars;
 
 // setup watchdog
 void wdtInit() {
@@ -48,10 +48,10 @@ void setup() {
   setupLogging(115200);
   INFO("WATCHDOG: %s", (WATCHDOG_SUPPORT ? "ON" : "OFF"));
 #ifdef MCP_CAN_BOOT_BL
-  outPC.mcusr = mcusr;
+  outPC.mcusr.word = mcusr;
   INFO("MCUSR: 0x%x", mcusr);
 #else
-  outPC.mcusr = 0;// arduino bootloader doesn't preserve MCUSR contents
+  outPC.mcusr.word = 0;// arduino bootloader doesn't preserve MCUSR contents
 #endif
 
   throttle.init(PID_SAMPLE_RATE_MS, throttleVars);
