@@ -1,7 +1,7 @@
 #pragma once
 
 #include <MegaCAN_ExtDevice.h>
-#include "tables.h"
+#include "EThrottleTables.h"
 
 #define CAN_CS  10
 #define CAN_INT 3

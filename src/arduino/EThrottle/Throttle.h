@@ -1,6 +1,7 @@
 #ifndef THROTTLE_H_
 #define THROTTLE_H_
 
+#include "EThrottleTables.h"
 #include "FaultFilter.h"
 #include <PID_v1.h>
 #include <stdint.h>
@@ -29,38 +30,11 @@ public:
     eSS_User = 1
   };
 
-  struct RangeCalibration
-  {
-    uint16_t min;
-    uint16_t max;
-  };
-
-  struct SensorSetup
-  {
-    uint8_t comparePPS    : 1;
-    uint8_t preferPPS_A   : 1;
-    uint8_t compareTPS    : 1;
-    uint8_t preferTPS_A   : 1;
-    uint8_t rsvd          : 4;
-  };
-
   struct FlashTableDescriptor
   {
     uint16_t xBinsFlashOffset;
     uint16_t yBinsFlashOffset;
     uint8_t nBins;
-  };
-
-  struct Status
-  {
-    uint8_t pidAutoTuneBusy    : 1;
-    uint8_t ppsComparisonFault : 1;
-    uint8_t tpsComparisonFault : 1;
-    uint8_t throttleEnabled    : 1;
-    uint8_t motorEnabled       : 1;
-    uint8_t motorDriverFault   : 1;// over current or over temp.
-    uint8_t adcStalled         : 1;
-    uint8_t reserved           : 1;
   };
 
   enum FaultClearCmd_E
@@ -69,76 +43,6 @@ public:
     eFCC_Driver = 'd',
     eFCC_PPS = 'p',
     eFCC_TPS = 't',
-  };
-
-  /**
-   * various RAM variables that we allow public access to
-   * for instrumentation and data logging purposes.
-   * All values are stored in big-endian (MegaSquirt is BE).
-   */
-  struct OutVars
-  {
-    // ADC readings from throttle position sensors A & B
-    // range: [0 to 1023]
-    uint16_t tpsA;
-    uint16_t tpsB;
-    // finalized throttle position based on both A & B sensor readings
-    // range: [-10000 to 10000] (ie. -100 to 100%)
-    int16_t tps;
-
-    // ADC readings from pedal position sensors A & B
-    // range: [0 to 1023]
-    uint16_t ppsA;
-    uint16_t ppsB;
-    // finalized pedal position based on both A & B sensor readings
-    // range: [-10000 to 10000] (ie. -100 to 100%)
-    int16_t pps;
-
-    // Throttle position the PID controller is targeting
-    // tpsTarget = idleAdder + ppsAdder
-    // range: [-10000 to 10000] (ie. -100 to 100%)
-    int16_t tpsTarget;
-
-    // PWM motor driver output
-    // range: [-255 to 255] if in h-bridge mode (negative means reverse)
-    //        [0 to 255] if in normal mode
-    int16_t motorOut;
-
-    // motor current in milliamps
-    // range: [0 to 65535] in milliamps
-    uint16_t motorCurrent_mA;
-
-    Status status;
-
-    // when using redundant PPS sensors, this value represents the delta
-    // of the secondary sensor's expected value compared to its measure
-    // value.
-    int16_t ppsSafetyDelta;
-
-    // when using redundant TPS sensors, this value represents the delta
-    // of the secondary sensor's expected value compared to its measure
-    // value.
-    int16_t tpsSafetyDelta;
-
-    // portion of the tpsTarget that's coming from engine idle control.
-    // currently just a fixed value from flash, but will eventually have
-    // its own PID too.
-    // range: [-10000 to 10000] (ie. -100 to 100%)
-    int16_t idleAdder;
-
-    // portion of the tpsTarget that's coming from the accelerator pedal
-    // ppsAdder = ((10000 - idleAdder) * pps) / 10000
-    // range: [-10000 to 10000] (ie. -100 to 100%)
-    int16_t ppsAdder;
-
-    // ADC readings from motor driver feedback pin
-    // range: [0 to 1023]
-    uint16_t driverFB;
-
-    // running count of how many sensor comparison faults there have been.
-    // not that these counters wrap when they overflow.
-    uint8_t ppsCompFaultCount;
-    uint8_t tpsCompFaultCount;
   };
 
 public:
@@ -155,7 +59,7 @@ public:
   void
   init(
     uint8_t pidSampleRate_ms,
-    OutVars *outVars);
+    ThrottleOutVars_T *outVars);
 
   /**
    * disables the motor driver and the PID control loop.
@@ -212,7 +116,7 @@ public:
   setSetpointOverride(
     double value);
 
-  const Status &
+  const ThrottleStatus_T &
   status() const;
 
   void
@@ -334,10 +238,10 @@ private:
     uint16_t motorCurrent_mA_;
 
     // RAM variables
-    OutVars *outVars_;
+    ThrottleOutVars_T *outVars_;
 
     // status maintained in RAM
-    Status status_;
+    ThrottleStatus_T status_;
 
     // rate at which the PID algorith runs in milliseconds
     uint8_t pidSampleRate_ms_;
@@ -379,5 +283,22 @@ private:
 };
 
 extern Throttle throttle;
+
+// accessor utilities
+void
+loadThrottlePID_FromFlash(
+  Throttle &throttle);
+
+void
+storeThrottlePID_ToFlash(
+  Throttle &throttle);
+
+void
+loadSensorCalibrationsFromFlash(
+  Throttle &throttle);
+
+void
+loadSensorSetupFromFlash(
+  Throttle &throttle);
 
 #endif
