@@ -95,7 +95,7 @@ Throttle::Throttle(
 void
 Throttle::init(
     uint8_t pidSampleRate_ms,
-    OutVars *outVars)
+    ThrottleOutVars_T *outVars)
 {
   pidSampleRate_ms_ = pidSampleRate_ms;
   outVars_ = outVars;
@@ -157,35 +157,35 @@ Throttle::getSetpointSource() const
 
 void
 Throttle::setRangeCalPPS_A(
-  Throttle::RangeCalibration rc)
+  RangeCalibration rc)
 {
   ppsCalA_ = rc;
 }
 
 void
 Throttle::setRangeCalPPS_B(
-  Throttle::RangeCalibration rc)
+  RangeCalibration rc)
 {
   ppsCalB_ = rc;
 }
 
 void
 Throttle::setRangeCalTPS_A(
-  Throttle::RangeCalibration rc)
+  RangeCalibration rc)
 {
   tpsCalA_ = rc;
 }
 
 void
 Throttle::setRangeCalTPS_B(
-  Throttle::RangeCalibration rc)
+  RangeCalibration rc)
 {
   tpsCalB_ = rc;
 }
 
 void
 Throttle::setSensorSetup(
-  Throttle::SensorSetup setup,
+  SensorSetup setup,
   const FlashTableDescriptor &ppsCompDesc,
   const FlashTableDescriptor &tpsCompDesc,
   uint16_t ppsCompareThresh,
@@ -213,7 +213,7 @@ Throttle::setSetpointOverride(
   }
 }
 
-const Throttle::Status &
+const ThrottleStatus_T &
 Throttle::status() const
 {
   return status_;
@@ -597,4 +597,69 @@ Throttle::doMotorCurrent()
   //  I_m = ADC * (5/1023) * (375/100)
   //  I_m = ADC * 0.018328 <- in amps
   motorCurrent_mA_ = driverFB_ * 18.328;
+}
+
+void
+loadThrottlePID_FromFlash(
+  Throttle &throttle)
+{
+  throttle.updatePID_Coeffs(
+    FlashUtils::flashRead_BE<uint16_t>(FIELD_OFFSET_CFG_PAGE1(throttleKp)) / 100.0,
+    FlashUtils::flashRead_BE<uint16_t>(FIELD_OFFSET_CFG_PAGE1(throttleKi)) / 100.0,
+    FlashUtils::flashRead_BE<uint16_t>(FIELD_OFFSET_CFG_PAGE1(throttleKd)) / 100.0);
+}
+
+void
+storeThrottlePID_ToFlash(
+  Throttle &throttle)
+{
+  FlashUtils::flashWrite_BE(FIELD_OFFSET_CFG_PAGE1(throttleKp), (uint16_t)(throttle.getKp() * 100.0));
+  FlashUtils::flashWrite_BE(FIELD_OFFSET_CFG_PAGE1(throttleKi), (uint16_t)(throttle.getKi() * 100.0));
+  FlashUtils::flashWrite_BE(FIELD_OFFSET_CFG_PAGE1(throttleKd), (uint16_t)(throttle.getKd() * 100.0));
+}
+
+void
+loadSensorCalibrationsFromFlash(
+  Throttle &throttle)
+{
+  RangeCalibration rc;
+
+  rc.min = FlashUtils::flashRead_BE<uint16_t>(FIELD_OFFSET_CFG_PAGE1(ppsCalA.min));
+  rc.max = FlashUtils::flashRead_BE<uint16_t>(FIELD_OFFSET_CFG_PAGE1(ppsCalA.max));
+  throttle.setRangeCalPPS_A(rc);
+  rc.min = FlashUtils::flashRead_BE<uint16_t>(FIELD_OFFSET_CFG_PAGE1(ppsCalB.min));
+  rc.max = FlashUtils::flashRead_BE<uint16_t>(FIELD_OFFSET_CFG_PAGE1(ppsCalB.max));
+  throttle.setRangeCalPPS_B(rc);
+  rc.min = FlashUtils::flashRead_BE<uint16_t>(FIELD_OFFSET_CFG_PAGE1(tpsCalA.min));
+  rc.max = FlashUtils::flashRead_BE<uint16_t>(FIELD_OFFSET_CFG_PAGE1(tpsCalA.max));
+  throttle.setRangeCalTPS_A(rc);
+  rc.min = FlashUtils::flashRead_BE<uint16_t>(FIELD_OFFSET_CFG_PAGE1(tpsCalB.min));
+  rc.max = FlashUtils::flashRead_BE<uint16_t>(FIELD_OFFSET_CFG_PAGE1(tpsCalB.max));
+  throttle.setRangeCalTPS_B(rc);
+}
+
+void
+loadSensorSetupFromFlash(
+  Throttle &throttle)
+{
+  SensorSetupUnion setupU;
+  setupU.word = EEPROM.read(FIELD_OFFSET_CFG_PAGE1(sensorSetup.word));
+
+  Throttle::FlashTableDescriptor ppsFTD;
+  ppsFTD.xBinsFlashOffset = FIELD_OFFSET_CFG_PAGE1(ppsCompCurve_xBins);
+  ppsFTD.yBinsFlashOffset = FIELD_OFFSET_CFG_PAGE1(ppsCompCurve_yBins);
+  ppsFTD.nBins = SENSOR_COMPARE_CURVE_N_BINS;
+
+  Throttle::FlashTableDescriptor tpsFTD;
+  tpsFTD.xBinsFlashOffset = FIELD_OFFSET_CFG_PAGE1(tpsCompCurve_xBins);
+  tpsFTD.yBinsFlashOffset = FIELD_OFFSET_CFG_PAGE1(tpsCompCurve_yBins);
+  tpsFTD.nBins = SENSOR_COMPARE_CURVE_N_BINS;
+
+  throttle.setSensorSetup(
+    setupU.bits,
+    ppsFTD,
+    tpsFTD,
+    FlashUtils::flashRead_BE<uint16_t>(FIELD_OFFSET_CFG_PAGE1(ppsCompareThresh)),
+    FlashUtils::flashRead_BE<uint16_t>(FIELD_OFFSET_CFG_PAGE1(tpsCompareThresh)),
+    FlashUtils::flashRead_BE<uint16_t>(FIELD_OFFSET_CFG_PAGE1(tpsStall)));
 }

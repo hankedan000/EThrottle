@@ -8,6 +8,7 @@ const uint16_t,minU16,,0,,min value of a 16bit unsigned integer,,,,,,,,,,,,,,,
 const uint16_t,maxU16,,65535,,max value of a 16bit unsigned integer,,,,,,,,,,,,,,,
 const int16_t,minS16,,-32768,,min value of a 16bit signed integer,,,,,,,,,,,,,,,
 const int16_t,maxS16,,32767,,max value of a 16bit signed integer,,,,,,,,,,,,,,,
+const uint8_t,SENSOR_COMPARE_CURVE_N_BINS,,4,,,,,,,,,,,,,,,,,
 ,,,,,,,,,,,,,,,,,,,,
 ,,,,,,,,,,,,,,,,,,,,
 bitfield,Status0Bits_T,,,,,,,,,,,,,,,,,,,
@@ -41,21 +42,21 @@ uint8_t,reserved,1,,,,,,,,,,,,,,,,,,
 ,,,,,,,,,,,,,,,,,,,,
 ,,,,,,,,,,,,,,,,,,,,
 struct,ThrottleOutVars_T,,,,,,,,,,,,,,,,,,,
-uint16_t,tpsA,,,,tpsA ADC value (raw),,ADC,1,0,adcMin,adcMax,,Sensors,,adcMin,adcMin,adcMax,adcMax,0,0
-uint16_t,tpsB,,,,tpsB ADC value (raw),,ADC,1,0,adcMin,adcMax,,Sensors,,adcMin,adcMin,adcMax,adcMax,0,0
-int16_t,tps,,,,tps percent,,%,0.01,0,0,100,,Sensors,,-10,-10,110,110,0,0
-uint16_t,ppsA,,,,ppsA ADC value (raw),,ADC,1,0,adcMin,adcMax,,Sensors,,adcMin,adcMin,adcMax,adcMax,0,0
-uint16_t,ppsB,,,,ppsB ADC value (raw),,ADC,1,0,adcMin,adcMax,,Sensors,,adcMin,adcMin,adcMax,adcMax,0,0
-int16_t,pps,,,,pps percent,,%,0.01,0,0,100,,Sensors,,-10,-10,110,110,0,0
-int16_t,tpsTarget,,,,PID's target tps value,,%,0.01,0,0,100,,Calculations,,-10,-10,110,110,0,0
-int16_t,motorOut,,,,motor driver PWM output + dir,,PWM,1,0,-255,255,,Calculations,,-260,-260,260,260,0,0
+uint16_t,tpsA,,,,tpsA ADC value (raw),,ADC,1,0,adcMin,adcMax,,Sensors,tpsA,adcMin,adcMin,adcMax,adcMax,0,0
+uint16_t,tpsB,,,,tpsB ADC value (raw),,ADC,1,0,adcMin,adcMax,,Sensors,tpsB,adcMin,adcMin,adcMax,adcMax,0,0
+int16_t,tps,,,,finalized throttle position based on both A & B sensor readings,,%,0.01,0,0,100,,Sensors,tps,-10,-10,110,110,0,0
+uint16_t,ppsA,,,,ppsA ADC value (raw),,ADC,1,0,adcMin,adcMax,,Sensors,ppsA,adcMin,adcMin,adcMax,adcMax,0,0
+uint16_t,ppsB,,,,ppsB ADC value (raw),,ADC,1,0,adcMin,adcMax,,Sensors,ppsB,adcMin,adcMin,adcMax,adcMax,0,0
+int16_t,pps,,,,finalized pedal position based on both A & B sensor readings,,%,0.01,0,0,100,,Sensors,pps,-10,-10,110,110,0,0
+int16_t,tpsTarget,,,,PID's target tps value,,%,0.01,0,0,100,,Calculations,tpsTarget,-10,-10,110,110,0,0
+int16_t,motorOut,,,,motor driver PWM output + dir,,PWM,1,0,-255,255,,Calculations,motorOut,-260,-260,260,260,0,0
 uint16_t,motorCurrent_mA,,,,motor current,,mA,1,0,0,3000,,Sensors,Motor Current,-10,-10,2000,2500,0,0
 ThrottleStatus_T,status,,,,status register for throttle PID,,,,,,,,,,,,,,,
 int16_t,ppsSafetyDelta,,,,delta in the redundant PPS sensor comparison,,ADC,1,0,-1023,1023,,Calculations,PPS Safety Delta,-60,-30,30,60,0,0
 int16_t,tpsSafetyDelta,,,,delta in the redundant TPS sensor comparison,,ADC,1,0,-1023,1023,,Calculations,TPS Safety Delta,-60,-30,30,60,0,0
 int16_t,idleAdder,,,,portion of tps target from idle control,,%,0.01,0,0,100,,Calculations,Idle Adder,-10,-10,110,110,0,0
 int16_t,ppsAdder,,,,portion of tps target from pedal position,,%,0.01,0,0,100,,Calculations,PPS Adder,-10,-10,110,110,0,0
-uint16_t,driverFB,,,,motor driver current feedback ADC value (raw),,ADC,1,0,adcMin,adcMax,,Sensors,,adcMin,adcMin,adcMax,adcMax,0,0
+uint16_t,driverFB,,,,motor driver current feedback ADC value (raw),,ADC,1,0,adcMin,adcMax,,Sensors,driverFB,adcMin,adcMin,adcMax,adcMax,0,0
 uint8_t,ppsCompFaultCount,,,,PPS comparison fault counter (wraps),,,1,0,0,maxU08,,Status,PPS Comp Fault Count,-10,-10,10,20,0,0
 uint8_t,tpsCompFaultCount,,,,TPS comparison fault counter (wraps),,,1,0,0,maxU08,,Status,TPS Comp Fault Count,-10,-10,10,20,0,0
 ,,,,,,,,,,,,,,,,,,,,
@@ -123,14 +124,14 @@ RT_BroadcastControl,ctrl,,,,,,,,,,,,,,,,,,,
 uint16_t,baseId,,,,,,,,,,,,,,,,,,,
 RT_BroadcastGroupEnables,groupEnables,,,,,,,,,,,,,,,,,,,
 ,,,,,,,,,,,,,,,,,,,,
-bitfield,MCUSR_Bits,,,,,,,,,,,,,,,,,,,
+bitfield,MCUSR_Status_Bits,,,,,,,,,,,,,,,,,,,
 uint8_t,porf,1,,,power-on reset flag,,,,,,,,,,,,,,,
 uint8_t,extrf,1,,,extern reset flag,,,,,,,,,,,,,,,
 uint8_t,borf,1,,,brown-out reset flag,,,,,,,,,,,,,,,
 uint8_t,wdrf,1,,,watchdog reset flag,,,,,,,,,,,,,,,
 ,,,,,,,,,,,,,,,,,,,,
-union,MCUSR,,,,,,,,,,,,,,,,,,,
-MCUSR_Bits,bits,,,,,,,,,,,,,,,,,,,
+union,MCUSR_Status,,,,,,,,,,,,,,,,,,,
+MCUSR_Status_Bits,bits,,,,,,,,,,,,,,,,,,,
 uint8_t,word,,,,,,,,,,,,,,,,,,,
 ,,,,,,,,,,,,,,,,,,,,
 struct,OutPC_T,,,,,OUT_PC,,,,,,,,,,,,,,
@@ -138,7 +139,7 @@ uint8_t,canStatus,,,,,,,,,,,,,,,,,,,
 uint8_t,canErrorCount,,,,,,,1,0,0,maxU08,,X-Code dev,CAN Error Count,-1,-1,1,10,0,0
 uint16_t,loopTimeUs,,,,,,,1,0,0,1500,,X-Code dev,Mainloop Time,-1,-1,600,1000,0,0
 Status0_T,status0,,,,,,,,,,,,,,,,,,,
-MCUSR,mcusr,,,,,,,,,,,,,,,,,,,
+MCUSR_Status,mcusr,,,,,,,,,,,,,,,,,,,
 uint8_t,reserved,,,4,,,,,,,,,,,,,,,,
 ThrottleOutVars_T,tVars,,,,,,,,,,,,,,,,,,,
 ADC_Status_T,adcStatus,,,,,,,,,,,,,,,,,,,
@@ -156,10 +157,10 @@ RangeCalibration,tpsCalB,,,,min/max ADC range calibration for Throttle Position 
 SensorSetupUnion,sensorSetup,,,,,,,,,,,,,,,,,,,
 uint8_t,reserved1,,,,,,,,,,,,,,,,,,,
 uint16_t,reserved2,,,,,,,,,,,,,,,,,,,
-uint16_t,ppsCompCurve_xBins,,,4,,,ADC,1,0,adcMin,adcMax,0,,,,,,,,
-uint16_t,ppsCompCurve_yBins,,,4,,,ADC,1,0,adcMin,adcMax,0,,,,,,,,
-uint16_t,tpsCompCurve_xBins,,,4,,,ADC,1,0,adcMin,adcMax,0,,,,,,,,
-uint16_t,tpsCompCurve_yBins,,,4,,,ADC,1,0,adcMin,adcMax,0,,,,,,,,
+uint16_t,ppsCompCurve_xBins,,,SENSOR_COMPARE_CURVE_N_BINS,,,ADC,1,0,adcMin,adcMax,0,,,,,,,,
+uint16_t,ppsCompCurve_yBins,,,SENSOR_COMPARE_CURVE_N_BINS,,,ADC,1,0,adcMin,adcMax,0,,,,,,,,
+uint16_t,tpsCompCurve_xBins,,,SENSOR_COMPARE_CURVE_N_BINS,,,ADC,1,0,adcMin,adcMax,0,,,,,,,,
+uint16_t,tpsCompCurve_yBins,,,SENSOR_COMPARE_CURVE_N_BINS,,,ADC,1,0,adcMin,adcMax,0,,,,,,,,
 uint16_t,ppsCompareThresh,,,,,,ADC,1,0,adcMin,adcMax,0,,,,,,,,
 uint16_t,tpsCompareThresh,,,,,,ADC,1,0,adcMin,adcMax,0,,,,,,,,
 uint16_t,tpsStall,,,,,,%,0.01,0,0,100,2,,,,,,,,
