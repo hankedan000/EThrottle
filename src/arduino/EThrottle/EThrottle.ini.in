@@ -508,15 +508,4 @@
 ;--   Format  - C-style output format of data.                                --
 
 [Datalog]
-    ;       Channel            Label          Type    Format
-    ;       --------------     ----------     -----   ------
-    entry = tVars_tps,               "TPS",         float,  "%.2f"
-    entry = tVars_tpsA,              "TPSA",        int,    "%d"
-    entry = tVars_tpsB,              "TPSB",        int,    "%d"
-    entry = tVars_pps,               "PPS",         float,  "%.2f"
-    entry = tVars_ppsA,              "PPSA",        int,    "%d"
-    entry = tVars_ppsB,              "PPSB",        int,    "%d"
-    entry = tVars_tpsTarget,         "TPS Target",  float,  "%.2f"
-    entry = tVars_motorOut,          "Motor Out",   int,    "%d"
-    entry = tVars_idleAdder,         "Idle Adder",  float,  "%.2f"
-    entry = tVars_ppsAdder,          "PPS Adder",   float,  "%.2f"
+%%DATALOG%%

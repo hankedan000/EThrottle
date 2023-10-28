@@ -22,14 +22,16 @@ COL_TRANSLATE = 9
 COL_LO = 10
 COL_HI = 11
 COL_DECIMAL_DIGITS = 12
-COL_GAUGE_CATEGORY = 13
-COL_GAUGE_TITLE = 14
-COL_LO_DANGER = 15
-COL_LO_WARN = 16
-COL_HI_WARN = 17
-COL_HI_DANGER = 18
-COL_VD = 19
-COL_LD = 20
+COL_DATA_LOG = 13
+COL_LOG_LABEL = 14
+COL_GAUGE_CATEGORY = 15
+COL_GAUGE_TITLE = 16
+COL_LO_DANGER = 17
+COL_LO_WARN = 18
+COL_HI_WARN = 19
+COL_HI_DANGER = 20
+COL_VD = 21
+COL_LD = 22
 
 # column indices for TABLE_LIST portion of CSV
 TL_COL_TYPE = 0
@@ -157,6 +159,8 @@ class RowObject(object):
 		self.lo = parse_number(nspace, float, row[COL_LO], allow_constants=True, default=0.0)
 		self.hi = parse_number(nspace, float, row[COL_HI], allow_constants=True, default=1.0)
 		self.decimal_digits = parse_number(nspace, int, row[COL_DECIMAL_DIGITS], default=0)
+		self.data_log = parse_number(nspace, int, row[COL_DATA_LOG], default=0) != 0
+		self.log_label = row[COL_LOG_LABEL]
 		self.gauge_category = row[COL_GAUGE_CATEGORY]
 		self.gauge_title = row[COL_GAUGE_TITLE]
 		self.lo_danger = parse_number(nspace, float, row[COL_LO_DANGER], allow_constants=True)
@@ -643,7 +647,34 @@ def write_header_file(args, nspace, table_list):
 	out_file_cpp.write("\n")
 	for var in global_vars:
 		out_file_cpp.write("%s %s;\n" % (var['type'], var['name']))
+
+def gen_ini_datalog_entries(out_pc, nspace, **kwargs):
+	indent = kwargs.get('indent', DEFAULT_INDENT)
+
+	log_vars_by_fullname = {}
+	def find_log_vars(type, full_type_name, offset):
+		if type.data_log:
+			log_vars_by_fullname[full_type_name] = type
+	traverse_members(out_pc, nspace, find_log_vars)
+
+	TITLES = ["", "Channel", "Label", "Type", "Format"]
+	datalog_table = []
+	for fullname, var in log_vars_by_fullname.items():
+		log_ctype = "int"
+		fmt_str = "%d"
+		if var.decimal_digits > 0:
+			log_ctype = "float"
+			fmt_str = "%%.%df" % var.decimal_digits
+		datalog_table.append([
+			"entry",
+			fullname,
+			'"%s"' % var.log_label,
+			log_ctype,
+			'"%s"' % fmt_str
+		])
 	
+	return make_padded_table(datalog_table, indent=indent, col_titles=TITLES, delim_by_col={0:" = "})
+
 def write_ini_file(args, nspace, **kwargs):
 	indent = kwargs.get('indent', DEFAULT_INDENT)
 	ini_out_file = args.ini_out_file
@@ -772,6 +803,13 @@ def write_ini_file(args, nspace, **kwargs):
 		page_defn = page_type.get_ini_page_string(nspace, indent=indent)
 		page_defns_str += page_defn
 	ini_out_str = ini_out_str.replace('%%PAGES%%', page_defns_str)
+
+	# --------------------------------------------------------
+	# fill out data log table
+	datalog_str = ""
+	if out_pc:
+		datalog_str = gen_ini_datalog_entries(out_pc, nspace, indent=indent)
+	ini_out_str = ini_out_str.replace('%%DATALOG%%', datalog_str)
 
 	ini_out_file.write(ini_out_str)
 
