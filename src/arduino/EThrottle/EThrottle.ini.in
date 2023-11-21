@@ -252,8 +252,6 @@
 ; and may create error messages.
 ; It is expected that these commands would not typically alter any ram mapped to a Constant.
   ;                              tableId, offsetMSB, offsetLSB, lenMSB, lenLSB, data[0], data[1], ..., data[len-1]
-  cmdDisableThrottle = "w\$tsCanId\x03\x00\x00\x00\x03\x74\x30\x00" ; uartCmd = "t0"
-  cmdEnableThrottle = "w\$tsCanId\x03\x00\x00\x00\x03\x74\x31\x00"  ; uartCmd = "t1"
   cmdClrAllFaults = "w\$tsCanId\x03\x00\x00\x00\x03\x63\x41\x00"  ; uartCmd = "cA"
   cmdClrDriverFault = "w\$tsCanId\x03\x00\x00\x00\x03\x63\x64\x00"  ; uartCmd = "cd"
   cmdClrPPS_Fault = "w\$tsCanId\x03\x00\x00\x00\x03\x63\x70\x00"  ; uartCmd = "cp"
@@ -282,6 +280,7 @@
             graphLine = tVars_pps
             graphLine = tVars_tps
             graphLine = tVars_tpsTarget
+        field = "Throttle Inhibit", throttleCtrl_bits_throttleInhibit
         field = "TPS Stall", tpsStall
         panel = throttle_pid_coeffs
 
@@ -298,6 +297,7 @@
             graphLine = tVars_ppsB, "ADC", 0, 0, auto, auto
 
     dialog = tpsCalRange
+        field = "Throttle Inhibit", throttleCtrl_bits_throttleInhibit
         field = "TPS A Min",  tpsCalA_min
         field = "TPS A Max",  tpsCalA_max
         field = "TPS B Min",  tpsCalB_min
@@ -366,10 +366,6 @@
         panel = can_outpc_bcast_setting, North
         panel = can_outpc_bcast_1, South
 
-    dialog = diagThrottleBtns, "Throttle Control", xAxis
-        commandButton = "Disable Throttle", cmdDisableThrottle, {tVars_status_throttleEnabled == 1}
-        commandButton = "Enable Throttle", cmdEnableThrottle, {tVars_status_throttleEnabled == 0}
-
     dialog = diagMCU_CtrlBtns, "MCU Control", xAxis
         commandButton = "Soft Reset", cmdSoftReset
 
@@ -380,7 +376,7 @@
         commandButton = "Clear TPS Fault", cmdClrTPS_Fault
 
     dialog = diagnostics, "", yAxis
-        panel = diagThrottleBtns
+        field = "Throttle Inhibit", throttleCtrl_bits_throttleInhibit
         panel = diagMCU_CtrlBtns
         panel = diagClrFaultBtns
 

@@ -1,3 +1,4 @@
+#include "EThrottleTables.h"
 #include "Throttle.h"
 
 #include <Arduino.h>
@@ -108,7 +109,7 @@ Throttle::init(
     pinMode(STROBE_PIN, OUTPUT);
 #endif
 
-  enableThrottle();
+  disableThrottle();
   analogWrite(driverPinP_,0);
   analogWrite(driverPinN_,0);
 
@@ -603,6 +604,17 @@ void
 loadThrottlePID_FromFlash(
   Throttle &throttle)
 {
+  ThrottleControl tCtrl;
+  tCtrl.word = EEPROM.read(FIELD_OFFSET_CFG_PAGE1(throttleCtrl));
+  if (tCtrl.bits.throttleInhibit)
+  {
+    throttle.disableThrottle();
+  }
+  else
+  {
+    throttle.enableThrottle();
+  }
+
   throttle.updatePID_Coeffs(
     FlashUtils::flashRead_BE<uint16_t>(FIELD_OFFSET_CFG_PAGE1(throttleKp)) / 100.0,
     FlashUtils::flashRead_BE<uint16_t>(FIELD_OFFSET_CFG_PAGE1(throttleKi)) / 100.0,
