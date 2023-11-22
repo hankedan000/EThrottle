@@ -518,7 +518,7 @@ def write_header_file(args, nspace, table_list):
 	table_id_enum_str = "enum TableId_E {"
 	forward_declare_str = "// forward declarations"
 	field_offset_macros = ""
-	flash_offset = 0
+	flash_table_idx = 0
 	for idx, row in enumerate(table_list):
 		c_row = []
 		if idx == 0:
@@ -539,18 +539,16 @@ def write_header_file(args, nspace, table_list):
 			table_size = traverse_members(nspace.get_type_by_name(row[TL_COL_TYPE]), nspace, None)
 			table_size_defns.append(["TABLE_SIZE_%s" % row[TL_COL_ENUM_NAME], "%d" % table_size])
 			if row[TL_COL_MEM_TYPE] == 'eFlash':
-				table_flash_offset = flash_offset
-				flash_offset += table_size
 				table_flash_offset_str = "TABLE_FLASH_OFFSET_%s" % row[TL_COL_ENUM_NAME]
-				table_flash_offset_defns.append([table_flash_offset_str, "%d" % table_flash_offset])
+				table_flash_offset_defns.append([table_flash_offset_str, "(MEGA_CAN_EXT_MAX_FLASH_TABLE_SIZE * %d)" % flash_table_idx])
 				field_offset_macros += "(%s + offsetof(%s, FIELD_NAME))" % (table_flash_offset_str, row[TL_COL_TYPE])
+				flash_table_idx += 1
 			else:
 				field_offset_macros += "(offsetof(%s, FIELD_NAME))" % (row[TL_COL_TYPE])
 
 		# generate table pointer entry
 		if row[TL_COL_MEM_TYPE] == 'eFlash':
 			c_row.append("MegaCAN::tempPage")
-			table_flash_offset = flash_offset
 		elif row[TL_COL_VAR_NAME] == 'nullptr':
 			c_row.append(row[TL_COL_VAR_NAME])
 		elif len(row[TL_COL_VAR_NAME]):

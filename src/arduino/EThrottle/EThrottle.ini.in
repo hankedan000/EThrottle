@@ -219,6 +219,8 @@
 
     menuDialog = main
         menu = "Basic/Load Settings"
+            subMenu = ppsRangeCal, "PPS Range Calibration"
+            subMenu = tpsRangeCal, "TPS Range Calibration"
             subMenu = sensorSetup, "Sensor Setup"
             subMenu = ppsCompareCurvePreferA, "PPS Comparison Curve (A prefered)", {(sensorSetup_bits_comparePPS) && (sensorSetup_bits_preferPPS_A == 1)}
             subMenu = ppsCompareCurvePreferB, "PPS Comparison Curve (B prefered)", {(sensorSetup_bits_comparePPS) && (sensorSetup_bits_preferPPS_A == 0)}
@@ -226,9 +228,6 @@
             subMenu = tpsCompareCurvePreferB, "TPS Comparison Curve (B prefered)", {(sensorSetup_bits_compareTPS) && (sensorSetup_bits_preferTPS_A == 0)}
             subMenu = std_separator
             subMenu = throttlePID_Control, "Throttle PID Control"
-            subMenu = std_separator
-            subMenu = ppsSensorCal, "PPS Sensor Calibration"
-            subMenu = tpsSensorCal, "TPS Sensor Calibration"
             subMenu = std_separator
             subMenu = tpsTargetCalcSummary, "TPS Target Calculation Summary"
 
@@ -290,7 +289,7 @@
         field = "PPS B Min",  ppsCalB_min
         field = "PPS B Max",  ppsCalB_max
 
-    dialog = ppsSensorCal, "Range Calibration", xAxis
+    dialog = ppsRangeCal, "PPS Range Calibration", xAxis
         panel = ppsCalRange, West
         liveGraph = ppsGraph, "PPS A/B Graph", East
             graphLine = tVars_ppsA, "ADC", 0, 0, auto, auto
@@ -303,7 +302,7 @@
         field = "TPS B Min",  tpsCalB_min
         field = "TPS B Max",  tpsCalB_max
 
-    dialog = tpsSensorCal, "Range Calibration", xAxis
+    dialog = tpsRangeCal, "TPS Range Calibration", xAxis
         panel = tpsCalRange, West
         liveGraph = tpsGraph, "TPS A/B Graph", East
             graphLine = tVars_tpsA, "ADC", 0, 0, auto, auto
