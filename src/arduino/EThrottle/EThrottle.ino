@@ -33,6 +33,29 @@ void wdtInit() {
   sei();
 }
 
+const char *
+showResetCause(
+  const uint8_t mcusr)
+{
+  INFO("reset cause...");
+  if (mcusr & (1 << 0))
+  {
+    INFO("Power-ON");
+  }
+  if (mcusr & (1 << 1))
+  {
+    INFO("External");
+  }
+  if (mcusr & (1 << 2))
+  {
+    INFO("Brown-Out");
+  }
+  if (mcusr & (1 << 3))
+  {
+    INFO("Watchdog");
+  }
+}
+
 void setup() {
 #ifdef MCP_CAN_BOOT_BL
   // retrieves the MCU reset cause (MCUSR register) when using the
@@ -49,7 +72,7 @@ void setup() {
   INFO("WATCHDOG: %s", (WATCHDOG_SUPPORT ? "ON" : "OFF"));
 #ifdef MCP_CAN_BOOT_BL
   outPC.mcusr.word = mcusr;
-  INFO("MCUSR: 0x%x", mcusr);
+  showResetCause(mcusr);
 #else
   outPC.mcusr.word = 0;// arduino bootloader doesn't preserve MCUSR contents
 #endif
