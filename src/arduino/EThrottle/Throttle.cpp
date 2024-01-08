@@ -530,7 +530,7 @@ Throttle::doThrottle()
     motorCurrent_mA_ = 0;
   }
 
-  // make user ADC conversions are running correctly
+  // make sure ADC conversions are running correctly
   if (newCycle)
   {
     static uint16_t prevADC_Cycles = 0;

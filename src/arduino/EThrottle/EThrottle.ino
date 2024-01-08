@@ -84,10 +84,7 @@ void setup() {
 
   canSetup();
 
-  if ( ! adc::start())
-  {
-    WARN("no ADC measurements enabled");
-  }
+  adc::start();
 }
 
 void loop() {
