@@ -45,9 +45,11 @@ namespace adc
     : adcMUX(0)
     , mMode(MeasurementMode_E::eMM_Disabled)
     , tMode(TriggerMode_E::eTM_Immediate)
-    , needsMeasure(0)
     , value(0)
-    {}
+    {
+      flags.needsMeasure = 0;
+      flags.sampled = 0;
+    }
 
     // adc mux value to use for measurement
     unsigned int adcMUX;
@@ -56,7 +58,12 @@ namespace adc
 
     volatile TriggerMode_E tMode;
 
-    volatile uint8_t needsMeasure;
+    struct Flags
+    {
+      uint8_t needsMeasure : 1;
+      uint8_t sampled      : 1;// set to 1 when ADC is sampled. user can clear if desired
+    };
+    volatile Flags flags;
 
     // latest ADC measurement value
     volatile uint16_t value;

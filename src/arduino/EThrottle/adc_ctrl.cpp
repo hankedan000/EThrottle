@@ -124,7 +124,7 @@ namespace adc
           doSetup = 1;
           break;
         case MeasurementMode_E::eMM_OneShot:
-          if (sched[schedIdx]->needsMeasure)
+          if (sched[schedIdx]->flags.needsMeasure)
           {
             keepSearching = 0;
             doSetup = 1;
@@ -179,7 +179,8 @@ namespace adc
     conversionCount++;
     CtrlEntry *currEntry = sched[schedIdx];
     currEntry->value = ADC;
-    currEntry->needsMeasure = 0;
+    currEntry->flags.needsMeasure = 0;
+    currEntry->flags.sampled = 1;
 
     findAndStartNext();
   }

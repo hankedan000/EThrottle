@@ -579,25 +579,35 @@ Throttle::doThrottle()
 #endif
 
   // request driver current ADC measurement once a PID cycle
-  adc::driverFB.needsMeasure = newCycle;
+  adc::driverFB.flags.needsMeasure = newCycle;
 }
 
 void
 Throttle::doMotorCurrent()
 {
-  driverFB_ = adc::driverFB.value;
+  // only process value when sample is new (smoothing algorithm doesn't work well)
+  if (adc::driverFB.flags.sampled)
+  {
+    adc::driverFB.flags.sampled = 0;// clear flag
 
-  // feedback pin drives 1/375th the current to ground through 100ohm resistor.
-  // V_fb = ADC * 5.0v / 1023
-  // V_fb = I * R = I_fb * 100ohm
-  // I_fb = I_m * 1/375
-  //  V_fb -> voltage see over 100ohm resistor
-  //  I_fb -> current out of driver's feedback pin (proportional to I_m)
-  //  I_m  -> current through motor
-  // solve for 'I_m' using the above equations:
-  //  I_m = ADC * (5/1023) * (375/100)
-  //  I_m = ADC * 0.018328 <- in amps
-  motorCurrent_mA_ = driverFB_ * 18.328;
+    driverFB_ = adc::driverFB.value;
+
+    // feedback pin drives 1/375th the current to ground through 100ohm resistor.
+    // V_fb = ADC * 5.0v / 1023
+    // V_fb = I * R = I_fb * 100ohm
+    // I_fb = I_m * 1/375
+    //  V_fb -> voltage see over 100ohm resistor
+    //  I_fb -> current out of driver's feedback pin (proportional to I_m)
+    //  I_m  -> current through motor
+    // solve for 'I_m' using the above equations:
+    //  I_m = ADC * (5/1023) * (375/100)
+    //  I_m = ADC * 0.018328 <- in amps
+    int32_t motorCurrentNow = driverFB_ * 18.328;
+
+    // apply smoothing
+    const uint8_t smoothFactor = 10;// 1 = highly smoothed, 100 = no smoothing
+    motorCurrent_mA_ += (int16_t)((smoothFactor * (motorCurrentNow - motorCurrent_mA_)) / 100);
+  }
 }
 
 void
